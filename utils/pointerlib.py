@@ -288,3 +288,22 @@ def imsave(path, img, scale=255.0, bias=0.0, img_type=np.uint8, mkdir=False):
     if mkdir:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(path), img_copy.astype(img_type))
+
+
+def imviz(img, name='DEFAULT', wait=0, normalize=None):
+    """Visualize image. Accept normalization function for visualize."""
+    img_copy = t2a(img).copy()
+    if img_copy.dtype == np.uint8:
+        img_copy = img_copy.astype(np.float32) / 255.0
+    if isinstance(normalize, list):
+        min_val, max_val = 0, 255
+        if len(normalize) == 0:
+            min_val, max_val = np.min(img_copy), np.max(img_copy)
+        elif len(normalize) == 2:
+            min_val, max_val = normalize
+        else:
+            raise ValueError(f"Normalize length is not valid: {len(normalize)}")
+        img_copy = (img_copy - min_val) / (max_val - min_val)
+        img_copy = np.clip(img_copy, 0, 1.0)
+    cv2.imshow(name, (img_copy * 255.0).astype(np.uint8))
+    return cv2.waitKey(wait)

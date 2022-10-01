@@ -45,41 +45,50 @@ class ExpTIDEWorker(Worker):
                 self.train_dataset
                 self.test_dataset
         """
-        train_folders = plb.subfolders(self.data_dir)
-        test_folders = plb.subfolders(self.test_dir)
-        train_paras = dict(clip_len=self.args.clip_len, frm_step=1, clip_jump=0, aug_flag=True)
-        test_paras = dict(clip_len=self.args.clip_len, frm_step=1, clip_jump=0, blur=False)
 
-        if self.args.exp_type == 'train':  # Pretrain
-            self.save_flag = False
-            assert train_folders is not None, '--train_dir is required for exp_type=train.'
-        elif self.args.exp_type == 'eval':  # Without BP: TIDE
-            train_folders = None
-            self.save_flag = self.args.save_res
-            assert test_folders is not None, '--test_dir is required for exp_type=eval.'
-        elif self.args.exp_type == 'online':  # With BP for training: TIDE-Online
-            train_paras['aug_flag'] = False
-            self.train_shuffle = False
-            test_folders = None
-            self.save_flag = self.args.save_res
-            assert train_folders is not None, '--train_dir is required for exp_type=online.'
-        else:
-            raise NotImplementedError(f'Wrong exp_type: {self.args.exp_type}')
+        # if self.args.exp_type == 'train':  # Pretrain
+        #     self.save_flag = False
+        #     assert train_folders is not None, '--train_dir is required for exp_type=train.'
+        # elif self.args.exp_type == 'eval':  # Without BP: TIDE
+        #     train_folders = None
+        #     self.save_flag = self.args.save_res
+        #     assert test_folders is not None, '--test_dir is required for exp_type=eval.'
+        # elif self.args.exp_type == 'online':  # With BP for training: TIDE-Online
+        #     train_paras['aug_flag'] = False
+        #     self.train_shuffle = False
+        #     test_folders = None
+        #     self.save_flag = self.args.save_res
+        #     assert train_folders is not None, '--train_dir is required for exp_type=online.'
+        # else:
+        #     raise NotImplementedError(f'Wrong exp_type: {self.args.exp_type}')
 
+        train_folders = plb.subfolders(self.train_dir)
         self.train_dataset = None
         if train_folders is not None:
-            self.train_dataset = ImgClipDataset(train_folders, pattern_path=self.data_dir / 'rect_pattern.png',
-                                                **train_paras)
-
-        self.test_dataset = []
-        self.res_writers = []
-        if test_folders is not None:
-            self.test_dataset.append(ImgClipDataset(test_folders, pattern_path=self.test_dir / 'rect_pattern.png',
-                                                    **test_paras))
-            self.res_writers.append(self.create_res_writers(test_folders[0].parent))
-
+            self.train_dataset = ImgClipDataset(
+                dataset_tag=self.train_dir.name,
+                seq_folders=train_folders,
+                pattern_path=self.train_dir / 'rect_pattern.png',
+                clip_len=self.args.clip_len,
+                frm_step=1,
+                clip_jump=0,
+                aug_flag=True
+            )
         if self.args.exp_type == 'online':
-            self.res_writers.append(self.create_res_writers(train_folders[0].parent))
+            self.train_shuffle = False
+
+        test_folders = plb.subfolders(self.test_dir)
+        self.test_dataset = []
+        if test_folders is not None:
+            self.test_dataset.append(ImgClipDataset(
+                dataset_tag=self.test_dir.name,
+                seq_folders=test_folders,
+                pattern_path=self.test_dir / 'rect_pattern.png',
+                clip_len=self.args.clip_len,
+                frm_step=1,
+                clip_jump=0,
+                blur=False
+            ))
 
         main_dataset = self.test_dataset[0] if self.args.exp_type == 'eval' else self.train_dataset
         self.imsize = main_dataset.get_size()
@@ -87,7 +96,7 @@ class ExpTIDEWorker(Worker):
         self.pat_info = main_dataset.get_pat_info()
         self.pat_info = {x: self.pat_info[x].to(self.device) for x in self.pat_info}
 
-        self.logging(f'--train_dir: {self.data_dir}')
+        self.logging(f'--train_dir: {self.train_dir}')
         self.logging(f'--test_dir: {self.test_dir}')
         pass
 
@@ -97,8 +106,8 @@ class ExpTIDEWorker(Worker):
                 self.networks (dict.)
             Keys will be used for network saving.
         """
-        self.networks['InitNet'] = RIDEInit()
-        self.network_static_list.append('InitNet')
+        self.networks['RIDE_Init'] = RIDEInit()
+        self.network_static_list.append('RIDE_Init')
         self.networks['RIDE_Ft'] = RIDEFeature()
         self.networks['RIDE_NtH'] = RIDEHidden()
         self.networks['RIDE_Up'] = RIDEUpdate(mask_flag=True, iter_times=1)
@@ -181,6 +190,9 @@ class ExpTIDEWorker(Worker):
         # 3. Multiple pf
         if data['frm_start'].item() == 0:
             self.mpf_distribution = None
+
+        for f in range(self.args.clip_len):
+            data['center'][f][data['disp'][f] == 0] = 0
         data['mpf'], self.mpf_distribution = self.mpf_estimator.run(data['center'], self.mpf_distribution)
 
         # pat
@@ -204,7 +216,7 @@ class ExpTIDEWorker(Worker):
                 net_h = self.last_frm['net_h']
             else:
                 with torch.no_grad():
-                    disp = self.networks['InitNet'](img=data['img'][0], pat=data['pat'])
+                    disp = self.networks['RIDE_Init'](img=data['img'][0], pat=data['pat'])
                     disp_outs.append(disp)
                 net_h = self.networks['RIDE_NtH'](img=data['img'][0])
 
@@ -237,7 +249,7 @@ class ExpTIDEWorker(Worker):
             for frm_idx in range(self.args.clip_len):
                 if frm_start == 0 and frm_idx == 0:  # Very first frame
                     with torch.no_grad():
-                        disp = self.networks['InitNet'](img=data['img'][frm_idx], pat=data['pat'])
+                        disp = self.networks['RIDE_Init'](img=data['img'][frm_idx], pat=data['pat'])
                         self.last_frm['net_h'] = self.networks['RIDE_NtH'](img=data['img'][frm_idx])
                         self.last_frm['fmap_pat'] = self.networks['RIDE_Ft'](img=data['pat'])
                 else:
@@ -271,6 +283,7 @@ class ExpTIDEWorker(Worker):
             for f in range(0, self.args.clip_len):
                 disp_est = disps[f]
                 mask = data['img_std'][f] if self.status == 'Train' else data['mask'][f]
+                # mask = data['center'][f]
                 mask[data['disp'][f] == 0] = 0.0
                 dp_super_loss += self.loss_record(
                     'dp-super', pred=disp_est, target=data['disp'][f], mask=mask
@@ -304,11 +317,11 @@ class ExpTIDEWorker(Worker):
 
             alpha_ph = 0.1
             dp_ph_loss = torch.zeros(1).to(self.device)
-            mask_set = self.loss_funcs['dp-pf'].cal_mask_from_filter(data['mpf'], xp_weight)
+            mask_set = self.loss_funcs['dp-pf'].cal_mask_from_filter(data['mpf'], xp_weight, rad=3)
             self.for_viz['mask_set'] = mask_set
             for f in range(0, self.args.clip_len):
                 disp = disps[f]
-                mask = mask_set[f] * data['img_std'][f]
+                mask = mask_set[f]  # * data['img_std'][f]
                 loss_val, img_wrp, img_err, _, _ = self.loss_record(
                     'dp-ph', img_dst=data['img'][f][:, 1:], img_src=data['pat'][:, 1:],
                     disp_mat=disp, mask=mask, std=data['img_std'][f], return_val_only=False
@@ -321,35 +334,43 @@ class ExpTIDEWorker(Worker):
         return total_loss
 
     def callback_after_train(self, epoch):
-        # save_flag
-        if self.args.save_stone > 0 and (epoch + 1) % self.args.save_stone == 0:
-            self.save_flag = True
-        else:
-            self.save_flag = False
         pass
 
-    def callback_save_res(self, data, net_out, dataset, res_writer):
+    def check_save_res(self, epoch):
+        save_stone_flag = super().check_save_res(epoch)
+
+        if self.args.exp_type in ['train', 'eval'] and self.status == 'Eval':
+            save_status_flag = True
+        elif self.args.exp_type in ['online'] and self.status == 'Train':
+            save_status_flag = True
+        else:
+            save_status_flag = False
+
+        return save_stone_flag and save_status_flag
+
+    def callback_save_res(self, epoch, data, net_out, dataset):
         """
             The callback function for data saving.
             The data should be saved with the input.
             Please create new folders and save result.
         """
-        out_dir, config = res_writer
-        disp_outs = net_out
+        dataset_tag = dataset.get_tag()
+        out_dir = self.res_dir / 'output' / dataset_tag / f'epoch_{epoch:05}'
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Disparity
         data_idx = int(data['idx'].item())
         seq_folder, frm_start = dataset.samples[data_idx]
-
-        # Save disp
-        save_folder = out_dir / seq_folder.name / 'disp'
-        save_folder.mkdir(parents=True, exist_ok=True)
-        vis_folder = out_dir / seq_folder.name / 'dot_vis'
-        vis_folder.mkdir(parents=True, exist_ok=True)
-        mask_folder = out_dir / seq_folder.name / 'mask_set'
-        mask_folder.mkdir(parents=True, exist_ok=True)
+        seq_out_dir = out_dir / seq_folder.name
         for frm_idx in range(self.args.clip_len):
-            disp_est = disp_outs[frm_idx]
-            plb.imsave(save_folder / f'disp_{frm_idx + frm_start}.png', disp_est,
-                       scale=1e2, img_type=np.uint16)
+            disp_est = net_out[frm_idx][0]
+            plb.imsave(seq_out_dir / 'disp' / f'disp_{frm_idx + frm_start}.png', disp_est,
+                       scale=1e2, img_type=np.uint16, mkdir=True)
+
+        # Mask
+        # for frm_idx in range(self.args.clip_len):
+        #     mask_mpf = self.for_viz['mask_set'][frm_idx][0]
+        #     plb.imsave(seq_out_dir / 'mask_mpf' / f'mask_{frm_idx + frm_start}.png', mask_mpf, mkdir=True)
 
         pass
 

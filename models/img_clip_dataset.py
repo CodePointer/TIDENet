@@ -5,6 +5,7 @@ import torch
 import cv2
 import numpy as np
 import pointerlib as plb
+from models.base_dataset import BaseDataset
 
 
 # - Coding Part - #
@@ -42,9 +43,11 @@ def augment_image(img, rng, max_blur=1.5, max_noise=10.0, max_sp_noise=0.001):
     return img_aug.astype(np.float32)
 
 
-class ImgClipDataset(torch.utils.data.Dataset):
+class ImgClipDataset(BaseDataset):
     """Load image from folders and split to sub-sections."""
-    def __init__(self, seq_folders, clip_len, pattern_path, frm_step=1, clip_jump=0, blur=False, aug_flag=False):
+    def __init__(self, dataset_tag, seq_folders, clip_len, pattern_path, 
+                 frm_step=1, clip_jump=0, blur=False, aug_flag=False):
+        super(ImgClipDataset, self).__init__(dataset_tag)
         self.seq_folders = seq_folders
         self.clip_len = clip_len
         self.frm_step = frm_step
@@ -97,6 +100,7 @@ class ImgClipDataset(torch.utils.data.Dataset):
             for i in range(self.clip_len):
                 frm_idx = frm_start + i * self.frm_step
                 disp = plb.imload(seq_folder / 'disp' / f'disp_{frm_idx}.png', scale=1e2, bias=0)
+                disp[:, :, :320] = 0.0
                 disps.append(disp)
             ret['disp'] = torch.cat(disps, dim=0)
 
@@ -136,18 +140,6 @@ class ImgClipDataset(torch.utils.data.Dataset):
 
     def get_pattern(self):
         return self.pattern.clone()
-
-    def get_pat_cen(self):
-        return self.cen_pat.clone()
-
-    def get_pat_dt(self):
-        return self.dt_pat.clone()
-
-    def get_pat_xcoord(self):
-        return self.xcoord_pat.clone()
-
-    def get_pat_id(self):
-        return self.id_pat.clone()
 
     def get_pat_info(self):
         return self.pat_info.copy()

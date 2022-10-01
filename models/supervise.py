@@ -106,7 +106,7 @@ class PFDistLoss(BaseLoss):
         self.args = {
             'sig2_prior_add': 10.0,
             "max_sig2": 1024.0,
-            "exp_sig2": 3.0,
+            "exp_sig2": 1.0,
             'edge_thr': 15.0,
             'alpha_edge': 1.0,
         }
@@ -135,13 +135,12 @@ class PFDistLoss(BaseLoss):
 
         self.reset()
 
-    def cal_mask_from_filter(self, mpf_dots, dots_weight):
+    def cal_mask_from_filter(self, mpf_dots, dots_weight, rad=5):
         """
         :param mpf_dots: 正序  [T, 2, Kc]  # ..., [xc^t-2, yc], [xc^t-1, yc], [xc^t, yc]
         :param dots_weight: [1, 1, Kc]
         :return:
         """
-        rad = 5
         mask_set = []
         for frm_idx in range(0, self.T):
             mask = torch.zeros([self.H, self.W]).to(self.device)
@@ -210,12 +209,12 @@ class PFDistLoss(BaseLoss):
 
     def forward(self, disp_list, mpf_dots, distribution_dots):
         """
-            disp_list: [1, 1, H, W] * iter_times * frm_num
+            disp_list: [1, 1, H, W] * frm_num
             mpf_dots: [T, 2, Kc]  # ..., [xc^t-2, yc], [xc^t-1, yc], [xc^t, yc]
             distribution_dots: [Kc, 5], [id_cam, x^t-T, y^t-T, mu, sig2]  for each flow set
         """
 
-        # 0. 将disp_list变成对应的xp
+        # 0. disp_list -> x coord in projector (xp)
         xp_set = []
         mask_set = []
         for frm_idx in range(0, self.T):
