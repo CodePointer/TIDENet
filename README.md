@@ -4,11 +4,11 @@ The PyTorch implementation of TIDE.
 
 | Data0605 (Ground truth) | Without Adaptation | With Online Adaptation |
 | --- | --- | --- |
-| ![GT](fig/Data0605-GT-disp.gif) | ![](fig/Data0605-tide-eval-disp.gif)![](fig/Data0605-tide-eval-step_err.gif) | ![](fig/Data0605-tide-on-disp.gif)![](fig/Data0605-tide-on-step_err.gif) |
+| ![GT](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data0605-GT-disp.gif?raw=true) | ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data0605-tide-eval-disp.gif?raw=true) ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data0605-tide-eval-step_err.gif?raw=true) | ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data0605-tide-on-disp.gif?raw=true) ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data0605-tide-on-step_err.gif?raw=true) |
 
 | Data1118 (Ground truth) | Without Adaptation | With Online Adaptation |
 | --- | --- | --- |
-| ![GT](fig/Data1118-GT-disp.gif) | ![](fig/Data1118-tide-eval-disp.gif)![](fig/Data1118-tide-eval-step_err.gif) | ![](fig/Data1118-tide-on-disp.gif)![](fig/Data1118-tide-on-step_err.gif) |
+| ![GT](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data1118-GT-disp.gif?raw=true) | ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data1118-tide-eval-disp.gif?raw=true) ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data1118-tide-eval-step_err.gif?raw=true) | ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data1118-tide-on-disp.gif?raw=true) ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data1118-tide-on-step_err.gif?raw=true) |
 
 If you find our code useful, please cite:
 
