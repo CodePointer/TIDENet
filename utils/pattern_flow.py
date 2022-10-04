@@ -13,8 +13,6 @@ import torch
 import torch.nn.functional as F
 import cv2
 import numpy as np
-from pathlib import Path
-from collections import deque
 from utils.pointerlib import t2a, a2t
 
 

@@ -4,7 +4,7 @@
 import torch
 import cv2
 import numpy as np
-import pointerlib as plb
+import utils.pointerlib as plb
 from models.base_dataset import BaseDataset
 
 
@@ -121,17 +121,6 @@ class ImgClipDataset(BaseDataset):
                 mask = plb.imload(seq_folder / 'mask_center' / f'mask_{frm_idx}.png', scale=255, bias=0)
                 masks.append(mask)
             ret['center'] = torch.cat(masks, dim=0)
-
-        if (seq_folder / 'pf_track').exists():
-            # Only the last track is needed. [?, y, x^t, x^t-1, ...]
-            frm_idx = frm_start + (self.clip_len - 1) * self.frm_step
-            pf_raw_mat = plb.imload(seq_folder / 'pf_track' / f'pf_{frm_idx}.png', scale=1.0, bias=0)  # [1, K, T+2]
-            pf_dots = []
-            for i in range(self.clip_len):
-                idx = (self.clip_len - 1 + 2) - i
-                pf_dot = torch.stack([pf_raw_mat[:, :, idx], pf_raw_mat[:, :, 1]], dim=2)  # [1, K, 2]
-                pf_dots.append(pf_dot)
-            ret['pf_dot'] = torch.cat(pf_dots, dim=0)
 
         return ret
 

@@ -7,7 +7,7 @@ import cv2
 
 import utils.pointerlib as plb
 from worker.worker import Worker
-from tide.tide_net import RIDEInit
+from tide.tide_net import TIDEInit
 from models.img_clip_dataset import ImgClipDataset
 from models.supervise import SuperviseDistLoss
 from models.layers import LCN
@@ -73,7 +73,7 @@ class ExpInitWorker(Worker):
                 self.networks (dict.)
             Keys will be used for network saving.
         """
-        self.networks['InitNet'] = RIDEInit()
+        self.networks['InitNet'] = TIDEInit()
         if self.args.exp_type in ['eval']:
             self.network_static_list.append('InitNet')
         self.logging(f'--networks: {",".join(self.networks.keys())}')

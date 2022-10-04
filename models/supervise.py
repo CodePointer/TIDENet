@@ -229,32 +229,32 @@ class PFDistLoss(BaseLoss):
         mask_clip[:, 0, 0] = 0.0  # [T, 1, Kc]
 
         with torch.no_grad():
-            # 1. 计算对应的mu, sig；
+            # 1. mu, sig for every dot
             flow_len = mask_clip.sum(dim=0, keepdim=True)  # [1, 1, Kc]
             mask_clip[flow_len.repeat(self.T, 1, 1) <= 2.0] = 0.0
             mu_cam = self._average_with_mask(xp_clip, mask_clip, dim=0)  # [1, 1, Kc]
             sig2_cam = self._average_with_mask((xp_clip - mu_cam) ** 2, mask_clip, dim=0)
             # sig2_cam *= (2 - flow_len / self.T) * 2.0  # (2 - flow_len / self.T) * 0.5  # [0.5, 1.875/2 ~ 0.9]
 
-            # 2. 根据mu进行相应的xp和id_p的对应
+            # 2. mu --<warp>--> xp & id_p
             xy_grid = torch.stack([mu_cam.view(-1), mpf_dots[0, 1, :]], dim=1).view(-1, 2)  # [Kc, 2]
             id_p = self._warp_with_coord(xy_grid, self.pat_info['pid'], mode='nearest').view(1, 1, -1)  # [1, 1, Kc]
             id_p[0, 0, 0] = 0
 
-            # 3. 从id_p进行重合判断，并取最小sigma2以进行筛选。
+            # 3. Deal with replicated id_p: Select argmin(sigma2)
             id_c = torch.arange(0, mu_cam.shape[2]).view(1, 1, -1).to(self.device)  # [1, 1, Kc]
             pt_cam = torch.stack([id_p, id_c, mu_cam, sig2_cam], dim=3)  # [1, 1, Kc, 4]
             _, sig2_idx = torch.sort(pt_cam[0, 0, :, 3], dim=0, descending=False)
             pt_cam = pt_cam[:, :, sig2_idx, :]
             pt_cam[0, 0, 0, :] = torch.Tensor([0.0, 0.0, 0.0, self.args['max_sig2']])
 
-            # 4. 投影至projector空间；更新相应的mu与sigma（对有效部分
+            # 4. Project to projector space to update mu & sigma
             pt_pro = torch.zeros([1, 1, self.num_pat, 4]).to(self.device)
             cam2pro_vec = pt_cam.squeeze()[:, 0].long()
             pt_pro[:, :, cam2pro_vec, :] = pt_cam  # [1, 1, Kp, 4]; id_p, id_c, mu, sigma
             pt_pro[0, 0, 0, :] = torch.Tensor([0.0, 0.0, 0.0, self.args['max_sig2']])
 
-            # 5. 根据edge，判断其可靠性。（参考pointerlib
+            # 5. Edge processing.
             # 5.1 edge_id_c
             id_c_src = pt_pro[0, 0, :, 1].long()  # [Kp]  id_c
             edge_id_p = self.pat_info['edge'].view(-1, 8)  # [Kp * 8]
@@ -287,7 +287,7 @@ class PFDistLoss(BaseLoss):
             # 5.4 adjust sig2
             pt_pro[0, 0, :, -1] *= self.args['alpha_edge'] * edge_weight.view(-1)
 
-            # 6. 反投影回cam空间并更新。
+            # 6. Back project to camera space
             pt_cam_back = torch.zeros_like(pt_cam)  # [1, 1, Kc, 4], id_p, id_c, mu, sig2
             pro2cam_vec = pt_pro[0, 0, :, 1].long()  # [Kp]
             pt_cam_back[:, :, pro2cam_vec, :] = pt_pro
@@ -303,7 +303,7 @@ class PFDistLoss(BaseLoss):
             pt_cam_edge = torch.zeros(pt_cam.shape[2], 8).long().to(self.device)
             pt_cam_edge[pro2cam_vec, :] = (edge_id_c * mask_edge).long()
 
-            # 7. 更新对应的weight
+            # 7. Update weight
             mu_cam_back = pt_cam_back[0, 0, :, 2]
             xy_grid = torch.stack([mu_cam_back, mpf_dots[0, 1, :]], dim=1).view(-1, 2)  # [Kc, 2]
             xp_gt = self._warp_with_coord(xy_grid, self.pat_info['xp'], mode='nearest').view(1, 1, -1)  # [1, 1, Kc]

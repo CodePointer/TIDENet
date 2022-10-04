@@ -8,7 +8,7 @@ import cv2
 import utils.pointerlib as plb
 from utils.pattern_flow import PFlowEstimatorLK, MPFlowEstimator
 from worker.worker import Worker
-from tide.tide_net import RIDEFeature, RIDEHidden, RIDEUpdate, RIDEInit
+from tide.tide_net import TIDEFeature, TIDEHidden, TIDEUpdate, TIDEInit
 from models.img_clip_dataset import ImgClipDataset
 from models.supervise import WarpedPhotoLoss, SuperviseDistLoss, PFDistLoss
 from models.layers import LCN, WarpLayer
@@ -106,11 +106,11 @@ class ExpTIDEWorker(Worker):
                 self.networks (dict.)
             Keys will be used for network saving.
         """
-        self.networks['RIDE_Init'] = RIDEInit()
-        self.network_static_list.append('RIDE_Init')
-        self.networks['RIDE_Ft'] = RIDEFeature()
-        self.networks['RIDE_NtH'] = RIDEHidden()
-        self.networks['RIDE_Up'] = RIDEUpdate(mask_flag=True, iter_times=1)
+        self.networks['TIDE_Init'] = TIDEInit()
+        self.network_static_list.append('TIDE_Init')
+        self.networks['TIDE_Ft'] = TIDEFeature()
+        self.networks['TIDE_NtH'] = TIDEHidden()
+        self.networks['TIDE_Up'] = TIDEUpdate(mask_flag=True, iter_times=1)
         self.logging(f'--networks: {",".join(self.networks.keys())}')
         self.logging(f'--networks-static: {",".join(self.network_static_list)}')
 
@@ -216,11 +216,11 @@ class ExpTIDEWorker(Worker):
                 net_h = self.last_frm['net_h']
             else:
                 with torch.no_grad():
-                    disp = self.networks['RIDE_Init'](img=data['img'][0], pat=data['pat'])
+                    disp = self.networks['TIDE_Init'](img=data['img'][0], pat=data['pat'])
                     disp_outs.append(disp)
-                net_h = self.networks['RIDE_NtH'](img=data['img'][0])
+                net_h = self.networks['TIDE_NtH'](img=data['img'][0])
 
-            fmap_pat = self.networks['RIDE_Ft'](img=data['pat'])
+            fmap_pat = self.networks['TIDE_Ft'](img=data['pat'])
 
             for frm_idx in range(0, self.args.clip_len):
                 # Warp hidden & disp_lst from Pattern flow
@@ -230,8 +230,8 @@ class ExpTIDEWorker(Worker):
                 net_h = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=net_h)
 
                 # Estimate raft
-                fmap_img = self.networks['RIDE_Ft'](data['img'][frm_idx])
-                disps, net_h, _ = self.networks['RIDE_Up'](fmap_img, fmap_pat, data['img'][frm_idx],
+                fmap_img = self.networks['TIDE_Ft'](data['img'][frm_idx])
+                disps, net_h, _ = self.networks['TIDE_Up'](fmap_img, fmap_pat, data['img'][frm_idx],
                                                            flow_init=disp_pred / 8.0, h=net_h)
                 disp_outs.append(disps[-1])
 
@@ -249,17 +249,17 @@ class ExpTIDEWorker(Worker):
             for frm_idx in range(self.args.clip_len):
                 if frm_start == 0 and frm_idx == 0:  # Very first frame
                     with torch.no_grad():
-                        disp = self.networks['RIDE_Init'](img=data['img'][frm_idx], pat=data['pat'])
-                        self.last_frm['net_h'] = self.networks['RIDE_NtH'](img=data['img'][frm_idx])
-                        self.last_frm['fmap_pat'] = self.networks['RIDE_Ft'](img=data['pat'])
+                        disp = self.networks['TIDE_Init'](img=data['img'][frm_idx], pat=data['pat'])
+                        self.last_frm['net_h'] = self.networks['TIDE_NtH'](img=data['img'][frm_idx])
+                        self.last_frm['fmap_pat'] = self.networks['TIDE_Ft'](img=data['pat'])
                 else:
                     with torch.no_grad():
-                        fmap_img = self.networks['RIDE_Ft'](img=data['img'][frm_idx])
+                        fmap_img = self.networks['TIDE_Ft'](img=data['img'][frm_idx])
                         disp_lst = self.last_frm['disp'].detach()
                         pf_dp_mat = data['pf'][frm_idx]
                         disp_pred = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=disp_lst) - pf_dp_mat
                         net_h = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=self.last_frm['net_h']).detach()
-                    disps, net_h, _ = self.networks['RIDE_Up'](fmap_img, self.last_frm['fmap_pat'],
+                    disps, net_h, _ = self.networks['TIDE_Up'](fmap_img, self.last_frm['fmap_pat'],
                                                                data['img'][frm_idx], flow_init=disp_pred / 8.0,
                                                                h=net_h)
                     self.last_frm['net_h'] = net_h

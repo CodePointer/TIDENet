@@ -3,7 +3,7 @@
 # @Time:      2021/8/12 14:52
 # @Author:    qiao
 # @Email:     rukunqiao@outlook.com
-# @File:      ride_net.py
+# @File:      tide_net.py
 # @Software:  PyCharm
 # @Description:
 #   None
@@ -18,24 +18,24 @@ from tide.submodules import CorrBlock1D, coords_grid, upflow8, dnflow8
 
 
 # - Coding Part - #
-class RIDEInit(nn.Module):
+class TIDEInit(nn.Module):
     def __init__(self, idim=2, fdim=128, hdim=96, cdim=64,
                  temp_type='gru', mask_flag=False, last_pred=False, iter_times=1):
-        super(RIDEInit, self).__init__()
-        self.ride_feature = RIDEFeature(idim, fdim)
-        self.ride_update = RIDEUpdate(idim, hdim, cdim, temp_type, mask_flag, last_pred, iter_times)
+        super(TIDEInit, self).__init__()
+        self.tide_feature = TIDEFeature(idim, fdim)
+        self.tide_update = TIDEUpdate(idim, hdim, cdim, temp_type, mask_flag, last_pred, iter_times)
 
     def forward(self, img, pat):
-        fmap_pat = self.ride_feature(img=pat)
-        fmap_img = self.ride_feature(img=img)
+        fmap_pat = self.tide_feature(img=pat)
+        fmap_img = self.tide_feature(img=img)
 
-        disps, _, _ = self.ride_update(fmap_img, fmap_pat, img)
+        disps, _, _ = self.tide_update(fmap_img, fmap_pat, img)
         return disps[0]
 
 
-class RIDEFeature(nn.Module):
+class TIDEFeature(nn.Module):
     def __init__(self, idim=2, fdim=128):
-        super(RIDEFeature, self).__init__()
+        super(TIDEFeature, self).__init__()
 
         self.fnet = SmallEncoder(input_dim=idim, output_dim=fdim, norm_fn='instance')
 
@@ -43,18 +43,18 @@ class RIDEFeature(nn.Module):
         return self.fnet(img)
 
 
-class RIDEHidden(nn.Module):
+class TIDEHidden(nn.Module):
     def __init__(self, idim=2, hdim=96):
-        super(RIDEHidden, self).__init__()
+        super(TIDEHidden, self).__init__()
         self.hnet = SmallEncoder(input_dim=idim, output_dim=hdim, norm_fn='none')
 
     def forward(self, img):
         return torch.tanh(self.hnet(img))
 
 
-class RIDEUpdate(nn.Module):
+class TIDEUpdate(nn.Module):
     def __init__(self, idim=2, hdim=96, cdim=64, temp_type='gru', mask_flag=False, last_pred=False, iter_times=1):
-        super(RIDEUpdate, self).__init__()
+        super(TIDEUpdate, self).__init__()
 
         self.hidden_dim = hdim
         self.context_dim = cdim
