@@ -98,8 +98,10 @@ class MaskDrawer:
         self.params = cv2.SimpleBlobDetector_Params()
 
         self.params.minThreshold = 10
-        self.params.maxThreshold = 200
-        self.params.thresholdStep = 10
+        self.params.maxThreshold = 256
+        self.params.thresholdStep = 2
+        self.params.minDistBetweenBlobs = 0
+        self.params.minRepeatability = 2
 
         self.params.filterByCircularity = False
         self.params.filterByConvexity = False
@@ -111,7 +113,6 @@ class MaskDrawer:
 
         self.params.filterByColor = True
         self.params.blobColor = 255
-        self.params.minDistBetweenBlobs = 0
 
         self.detector = cv2.SimpleBlobDetector_create(self.params)
 
@@ -119,6 +120,9 @@ class MaskDrawer:
 
         self.adj_matrix = None
         self.field_map = None
+
+    def set_imsize(self, hei, wid):
+        self.imsize = (hei, wid)
 
     def detect_dots(self, pat):
         pat_u8 = plb.t2a(pat * 255).astype(np.uint8)
@@ -260,7 +264,7 @@ def create_pattern_field(pattern_name, pattern_mask):
     pat_xp = pid_drawer.draw_coord(dots, pat_pid)
 
     # Write neighbor
-    edge_drawer = MaskDrawer()
+    edge_drawer = MaskDrawer(img_size=pattern.shape[-2:])
     edge_drawer.create_field(dots, mask)
     pos = np.array(dots).astype(np.int64)
     pos = np.concatenate([np.zeros([1, 2], dtype=pos.dtype), pos], axis=0)
@@ -289,7 +293,7 @@ def create_pattern_field(pattern_name, pattern_mask):
 
 
 if __name__ == '__main__':
-    pattern_name = 'C:/SLDataSet/20210605r/rect_pattern.png'
-    mask_name = 'C:/SLDataSet/20210605r/rect_pattern_mask.png'
+    pattern_name = 'C:/SLDataSet/TADE/5_RealDataCut/pat/pat_42.png'
+    mask_name = 'C:/SLDataSet/TADE/5_RealDataCut/pat/mask.png'
     create_pattern_field(pattern_name, mask_name)
     pass

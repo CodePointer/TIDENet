@@ -4,6 +4,7 @@
 import torch
 import cv2
 import numpy as np
+from configparser import ConfigParser
 import utils.pointerlib as plb
 from models.base_dataset import BaseDataset
 
@@ -45,10 +46,25 @@ def augment_image(img, rng, max_blur=1.5, max_noise=10.0, max_sp_noise=0.001):
 
 class ImgClipDataset(BaseDataset):
     """Load image from folders and split to sub-sections."""
-    def __init__(self, dataset_tag, seq_folders, clip_len, pattern_path, 
+    def __init__(self, dataset_tag, data_folder, clip_len,
                  frm_step=1, clip_jump=0, blur=False, aug_flag=False):
         super(ImgClipDataset, self).__init__(dataset_tag)
-        self.seq_folders = seq_folders
+
+        # Load config.ini for parameters
+        config = ConfigParser()
+        config.read(str(data_folder / 'config.ini'), encoding='utf-8')
+
+        self.data_folder = data_folder
+        self.reverse_flag = int(config['Data']['reverse'])
+        self.start_frm = None
+        if self.reverse_flag:
+            self.start_frm = [int(x) for x in config['Data']['start_frm']]
+        self.total_sequence = int(config['Data']['total_sequence'])
+        self.frm_len = int(config['Data']['frm_len'])
+        self.imsize = [int(x) for x in config['Data']['img_size'].split(',')]
+
+        self.seq_folders = sorted(list(data_folder.glob('scene_*')))
+
         self.clip_len = clip_len
         self.frm_step = frm_step
         self.apply_blur = blur
@@ -56,23 +72,22 @@ class ImgClipDataset(BaseDataset):
         self.rng = np.random.RandomState(seed=42)
         self.data_aug = aug_flag
 
+        pattern_path = list((data_folder / 'pat').glob('pat_*.png'))[-1]
+
         self.pattern = plb.imload(pattern_path, scale=255.0, bias=0.0, flag_tensor=False)
         if self.apply_blur:
             self.pattern = cv2.GaussianBlur(self.pattern, ksize=(7, 7), sigmaX=self.sigma)
         self.pattern = plb.a2t(self.pattern)
 
-        if (pattern_path.parent / 'pat_info.pt').exists():
+        if (data_folder / 'pat_info.pt').exists():
             dict_load = torch.load(pattern_path.parent / 'pat_info.pt')
             self.pat_info = {x: dict_load[x].unsqueeze(0) for x in dict_load}
 
-        self.imsize = self.pattern.shape[-2:]
-
         frm_jump = frm_step * clip_len + clip_jump
         self.samples = []
-        for seq_folder in seq_folders:
-            total_frm = len(list((seq_folder / 'img').glob('*.png')))
-            for frm_start in range(0, total_frm, frm_jump):
-                if frm_start + frm_step * clip_len > total_frm:
+        for seq_folder in self.seq_folders:
+            for frm_start in range(0, self.frm_len, frm_jump):
+                if frm_start + frm_step * clip_len > self.frm_len:
                     continue
                 self.samples.append((seq_folder, frm_start))
 

@@ -6,7 +6,6 @@
 import configparser
 from datetime import datetime
 import torch
-
 import numpy as np
 import os
 from collections import OrderedDict
@@ -130,7 +129,7 @@ class Worker:
                     self.networks[name].eval()
                 else:
                     self.networks[name].train()
-                self.logging(f'--models loaded: {model_name}')
+                self.logging(f'Models loaded: {model_name}')
 
     def _net_save(self, epoch_num):
         # Only save for first GPU.
@@ -149,7 +148,7 @@ class Worker:
             else:
                 state_dict = self.networks[name].state_dict()
             torch.save(state_dict, model_name)
-            self.logging(f'--model saved: {model_name}', tag='save', step=epoch_num)
+            self.logging(f'Model saved: {model_name}', tag='save', step=epoch_num)
 
             # Save best model with test
             if self.history_best[1]:
@@ -195,7 +194,7 @@ class Worker:
             gamma = 10.0
             self.args.lr_step = - self.args.lr_step
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, self.args.lr_step, gamma=gamma, last_epoch=-1)
-        self.logging(f'--learning rate: {self.args.lr} * {gamma} for every {self.args.lr_step}')
+        self.logging(f'Learning rate: {self.args.lr} * {gamma} for every {self.args.lr_step}')
 
     def do(self):
         # Set initial things
@@ -218,17 +217,17 @@ class Worker:
         self.avg_meters['Total'] = plb.EpochMeter('Total')
         for loss_name in self.loss_funcs:
             self.avg_meters[loss_name] = plb.EpochMeter(loss_name)
-        self.logging(f'--loss meters: {self.avg_meters.keys()}')
+        self.logging(f'Loss meters: {self.avg_meters.keys()}')
 
         for epoch_num in range(epoch_start, epoch_end):
             if self.args.exp_type in ['train', 'online']:
-                lr = self.scheduler.get_last_lr()[0]
-                self.logging(f'Start training epoch {epoch_num}: lr={lr} <{self.time_keeper}>', tag='epoch', step=epoch_num)
+                # lr = self.scheduler.get_last_lr()[0]
+                # self.logging(f'Start training epoch {epoch_num}: lr={lr} <{self.time_keeper}>', tag='epoch', step=epoch_num)
                 self.train_epoch(epoch=epoch_num)
                 self.scheduler.step()
             self.callback_after_train(epoch_num)
 
-            self.logging(f'Start testing epoch {epoch_num}. <{self.time_keeper}>', tag='epoch', step=epoch_num)
+            # self.logging(f'Start testing epoch {epoch_num}. <{self.time_keeper}>', tag='epoch', step=epoch_num)
             self.test_epoch(epoch=epoch_num)
             self.callback_after_test(epoch_num)
 

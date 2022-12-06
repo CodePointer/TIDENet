@@ -160,9 +160,3 @@ def post_process(args):
     args.device = torch.device(f'cuda:{args.local_rank}')
 
     return args
-
-
-def parse_args():
-    args = get_args()
-    post_process(args)
-    return args

@@ -25,7 +25,7 @@ class ExpInitWorker(Worker):
         self.super_dist = None
         self.lcn_layer = None
 
-        self.for_viz = {'frm_max': 128}
+        self.for_viz = {}
 
     def init_dataset(self):
         """
