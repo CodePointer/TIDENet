@@ -99,20 +99,20 @@ class MaskDrawer:
 
         self.params.minThreshold = 10
         self.params.maxThreshold = 256
-        self.params.thresholdStep = 2
+        self.params.thresholdStep = 3
         self.params.minDistBetweenBlobs = 0
-        self.params.minRepeatability = 2
+        self.params.minRepeatability = 3
+
+        self.params.filterByColor = True
+        self.params.blobColor = 255
+
+        self.params.filterByArea = True
+        self.params.minArea = 0
+        self.params.maxArea = 50
 
         self.params.filterByCircularity = False
         self.params.filterByConvexity = False
         self.params.filterByInertia = False
-
-        self.params.filterByArea = True
-        self.params.minArea = 0
-        self.params.maxArea = 20
-
-        self.params.filterByColor = True
-        self.params.blobColor = 255
 
         self.detector = cv2.SimpleBlobDetector_create(self.params)
 
@@ -216,7 +216,7 @@ class MaskDrawer:
         for dot in dots:
             x, y = dot
             w, h = round(x), round(y)
-            mask_u8 = cv2.circle(mask_u8, (w, h), 2, color=255, thickness=-1)
+            mask_u8 = cv2.circle(mask_u8, (w, h), 1, color=255, thickness=-1)
 
         adj_len = 0 if self.adj_matrix is None else len(self.adj_matrix)
         for i in range(1, adj_len):

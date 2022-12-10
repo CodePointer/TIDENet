@@ -3,34 +3,69 @@
 # @Time:      2022/10/4 19:40
 # @Author:    qiao
 # @Email:     rukunqiao@outlook.com
-# @File:      draw_mask_center.py.py
+# @File:      draw_mask_center.py
 # @Software:  PyCharm
 # @Description:
-#   None
+#   Run this description with different main_folder path. It will draw all the mask_center mask.
 
 # - Package Imports - #
 from tqdm import tqdm
+import cv2
 from pathlib import Path
-
-from tools.pattern_compute import MaskDrawer
-import utils.pointerlib as plb
+import numpy as np
 
 
 # - Coding Part - #
-def draw_center(data_folder):
+class MaskCenterDrawer:
+    def __init__(self):
+        self.params = cv2.SimpleBlobDetector_Params()
+
+        self.params.minThreshold = 10
+        self.params.maxThreshold = 256
+        self.params.thresholdStep = 3
+        self.params.minDistBetweenBlobs = 0
+        self.params.minRepeatability = 3
+
+        self.params.filterByColor = True
+        self.params.blobColor = 255
+
+        self.params.filterByArea = True
+        self.params.minArea = 0
+        self.params.maxArea = 50
+
+        self.params.filterByCircularity = False
+        self.params.filterByConvexity = False
+        self.params.filterByInertia = False
+
+        self.detector = cv2.SimpleBlobDetector_create(self.params)
+
+    def detect(self, img_u8):
+        key_points = self.detector.detect(img_u8)
+        dots = [x.pt for x in key_points]
+        return dots
+
+    def draw_center(self, img_u8, dots):
+        mask_u8 = np.zeros_like(img_u8)
+        for dot in dots:
+            x, y = dot
+            h, w = round(y), round(x)
+            mask_u8[h, w] = 255
+        return mask_u8
+
+
+def main(data_folder):
     folder_list = [x for x in data_folder.glob('scene_*') if x.is_dir()]
-    drawer = MaskDrawer()
+    drawer = MaskCenterDrawer()
     for folder in folder_list:
         (folder / 'mask_center').mkdir(exist_ok=True)
         img_folder = folder / 'img'
         total_frm = len(list(img_folder.glob('*.png')))
         for frm_idx in tqdm(range(total_frm), desc=folder.name):
-            img = plb.imload(img_folder / f'img_{frm_idx}.png', 255.0)
-            drawer.set_imsize(*img.shape[-2:])
-            dots = drawer.detect_dots(img)
-            mask = drawer.draw_mask(dots)
-            plb.imsave(folder / 'mask_center' / f'mask_{frm_idx}.png', mask, 255.0, mkdir=True)
+            img = cv2.imread(str(img_folder / f'img_{frm_idx}.png'), cv2.IMREAD_GRAYSCALE)
+            dots = drawer.detect(img)
+            mask = drawer.draw_center(img, dots)
+            cv2.imwrite(str(folder / 'mask_center' / f'mask_{frm_idx}.png'), mask)
 
 
 if __name__ == '__main__':
-    draw_center(Path('C:/SLDataSet/TADE/5_RealDataCut'))
+    main(Path('C:/SLDataSet/TADE/4_VirtualDataCut'))

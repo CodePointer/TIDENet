@@ -4,14 +4,13 @@
 import numpy as np
 import torch
 import cv2
-from pathlib import Path
 
 import utils.pointerlib as plb
-from utils.pattern_flow import PFlowEstimatorLK
+from utils.pattern_flow import PFlowEstimatorLK, MPFlowEstimator
 from worker.worker import Worker
 from tide.tide_net import TIDEFeature, TIDEHidden, TIDEUpdate, TIDEInit
 from models.img_clip_dataset import ImgClipDataset
-from models.supervise import SuperviseDistLoss
+from models.supervise import WarpedPhotoLoss, SuperviseDistLoss, PFDistLoss
 from models.layers import LCN, WarpLayer
 
 
@@ -22,16 +21,20 @@ class ExpTIDEWorker(Worker):
             Please add all parameters will be used in the init function.
         """
         super().__init__(args)
-
-        # init_dataset
         self.imsize = None
-        self.pattern = None
 
-        # init_losses
+        self.pattern = None
+        self.pat_info = None
+        self.mpf_distribution = None
+
         self.super_dist = None
+        self.pf_dist = None
+        self.warp_loss = None
+        self.warp_layer = None
+        self.warp_layer_dn8 = None
         self.lcn_layer = None
         self.pf_estimator = None
-        self.warp_layer_dn8 = None
+        self.mpf_estimator = None
 
         self.last_frm = {}
         self.for_viz = {'frm_max': 128}
@@ -43,44 +46,58 @@ class ExpTIDEWorker(Worker):
                 self.test_dataset
         """
 
+        # if self.args.exp_type == 'train':  # Pretrain
+        #     self.save_flag = False
+        #     assert train_folders is not None, '--train_dir is required for exp_type=train.'
+        # elif self.args.exp_type == 'eval':  # Without BP: TIDE
+        #     train_folders = None
+        #     self.save_flag = self.args.save_res
+        #     assert test_folders is not None, '--test_dir is required for exp_type=eval.'
+        # elif self.args.exp_type == 'online':  # With BP for training: TIDE-Online
+        #     train_paras['aug_flag'] = False
+        #     self.train_shuffle = False
+        #     test_folders = None
+        #     self.save_flag = self.args.save_res
+        #     assert train_folders is not None, '--train_dir is required for exp_type=online.'
+        # else:
+        #     raise NotImplementedError(f'Wrong exp_type: {self.args.exp_type}')
+
+        train_folders = plb.subfolders(self.train_dir)
         self.train_dataset = None
-        if self.args.train_dir != '':
-            train_folder = Path(self.args.train_dir)
-            train_paras = dict(
-                dataset_tag=train_folder.name,
-                data_folder=train_folder,
+        if train_folders is not None:
+            self.train_dataset = ImgClipDataset(
+                dataset_tag=self.train_dir.name,
+                seq_folders=train_folders,
+                pattern_path=self.train_dir / 'rect_pattern.png',
                 clip_len=self.args.clip_len,
                 frm_step=1,
                 clip_jump=0,
-                blur=False,
-                aug_flag=True,
+                aug_flag=True
             )
-            self.train_dataset = ImgClipDataset(**train_paras)
+        if self.args.exp_type == 'online':
+            self.train_shuffle = False
 
-        self.test_dataset = None
-        if self.args.test_dir != '':
-            test_folder = Path(self.args.test_dir)
-            test_paras = dict(
-                dataset_tag=test_folder.name,
-                data_folder=test_folder,
+        test_folders = plb.subfolders(self.test_dir)
+        self.test_dataset = []
+        if test_folders is not None:
+            self.test_dataset.append(ImgClipDataset(
+                dataset_tag=self.test_dir.name,
+                seq_folders=test_folders,
+                pattern_path=self.test_dir / 'rect_pattern.png',
                 clip_len=self.args.clip_len,
                 frm_step=1,
                 clip_jump=0,
-                blur=False,
-                aug_flag=False,
-            )
-            self.test_dataset = ImgClipDataset(**test_paras)
+                blur=False
+            ))
 
-        if self.args.exp_type in ['train']:
-            assert self.train_dataset is not None, f'train_dir is required for exp_type={self.args.exp_type}.'
-        elif self.args.exp_type in ['eval']:
-            assert self.test_dataset is not None, f'test_dir is required for exp_type={self.args.exp_type}.'
-        else:
-            raise NotImplementedError(f'Wrong exp_type: {self.args.exp_type}')
-
-        main_dataset = self.test_dataset if self.args.exp_type == 'eval' else self.train_dataset
+        main_dataset = self.test_dataset[0] if self.args.exp_type == 'eval' else self.train_dataset
         self.imsize = main_dataset.get_size()
         self.pattern = main_dataset.get_pattern().unsqueeze(0)
+        self.pat_info = main_dataset.get_pat_info()
+        self.pat_info = {x: self.pat_info[x].to(self.device) for x in self.pat_info}
+
+        self.logging(f'--train_dir: {self.train_dir}')
+        self.logging(f'--test_dir: {self.test_dir}')
         pass
 
     def init_networks(self):
@@ -104,11 +121,26 @@ class ExpTIDEWorker(Worker):
             Keys will be used for avg_meter.
         """
         self.super_dist = SuperviseDistLoss(dist='smoothl1')
-        self.lcn_layer = LCN(radius=9, epsilon=1e-6)
+        self.warp_layer = WarpLayer(*self.imsize)
         self.warp_layer_dn8 = WarpLayer(self.imsize[0] // 8, self.imsize[1] // 8)
+        self.warp_loss = WarpedPhotoLoss(*self.imsize, dist='smoothl1')
+        self.pf_dist = PFDistLoss(self.pat_info, self.args.clip_len, *self.imsize, device=self.device)
+        self.lcn_layer = LCN(radius=9, epsilon=1e-6)
+
+        if self.args.loss_type == 'su':
+            self.loss_funcs['dp-super'] = self.super_dist
+        elif self.args.loss_type == 'ph':
+            self.loss_funcs['dp-ph'] = self.warp_loss
+        elif self.args.loss_type == 'pf':
+            self.loss_funcs['dp-ph'] = self.warp_loss
+            self.loss_funcs['dp-pf'] = self.pf_dist
+        else:
+            raise ValueError(f'Invalid exp_tag: {self.args.exp_tag}')
+
         self.pf_estimator = PFlowEstimatorLK(*self.imsize)
-        self.loss_funcs['dp-super'] = self.super_dist
-        self.logging(f'Loss types: {self.loss_funcs.keys()}')
+        self.mpf_estimator = MPFlowEstimator(self.args.clip_len, device=self.device)
+
+        self.logging(f'--loss types: {self.loss_funcs.keys()}')
 
     def data_process(self, idx, data):
         """
@@ -118,7 +150,7 @@ class ExpTIDEWorker(Worker):
         # 1. Split
         key_list = list(data.keys())
         for key in key_list:
-            if key in ['disp', 'mask']:
+            if key in ['disp', 'mask', 'center', 'pf_dot']:
                 data[key] = [x for x in torch.chunk(data[key], self.args.clip_len, dim=1)]
             elif key in ['img']:
                 img_list = []
@@ -147,9 +179,21 @@ class ExpTIDEWorker(Worker):
 
         # 2. Copy to device
         for f in range(self.args.clip_len):
-            for key in ['img', 'pf', 'img_std', 'disp', 'mask']:
-                if key in data and data[key][f] is not None:
-                    data[key][f] = data[key][f].to(self.device)
+            data['img'][f] = data['img'][f].to(self.device)
+            data['pf'][f] = data['pf'][f].to(self.device) if data['pf'][f] is not None else None
+            data['center'][f] = data['center'][f].to(self.device)
+            data['img_std'][f] = data['img_std'][f].to(self.device)
+            if self.args.loss_type in ['su']:
+                data['disp'][f] = data['disp'][f].to(self.device)
+                data['mask'][f] = data['mask'][f].to(self.device)
+
+        # 3. Multiple pf
+        if data['frm_start'].item() == 0:
+            self.mpf_distribution = None
+
+        for f in range(self.args.clip_len):
+            data['center'][f][data['disp'][f] == 0] = 0
+        data['mpf'], self.mpf_distribution = self.mpf_estimator.run(data['center'], self.mpf_distribution)
 
         # pat
         batch = data['img'][0].shape[0]
@@ -167,10 +211,15 @@ class ExpTIDEWorker(Worker):
         if self.status in ['Train']:  # Batch based.
             disp_outs = []
 
-            with torch.no_grad():
-                disp = self.networks['TIDE_Init'](img=data['img'][0], pat=data['pat'])
-                disp_outs.append(disp)
-            net_h = self.networks['TIDE_NtH'](img=data['img'][0])
+            if self.args.exp_type == 'online' and data['frm_start'].item() > 0:
+                disp_outs.append(self.last_frm['disp'])
+                net_h = self.last_frm['net_h']
+            else:
+                with torch.no_grad():
+                    disp = self.networks['TIDE_Init'](img=data['img'][0], pat=data['pat'])
+                    disp_outs.append(disp)
+                net_h = self.networks['TIDE_NtH'](img=data['img'][0])
+
             fmap_pat = self.networks['TIDE_Ft'](img=data['pat'])
 
             for frm_idx in range(0, self.args.clip_len):
@@ -180,13 +229,18 @@ class ExpTIDEWorker(Worker):
                 disp_pred = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=disp_lst) - pf_dp_mat
                 net_h = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=net_h)
 
-                # Estimate Disparity
+                # Estimate raft
                 fmap_img = self.networks['TIDE_Ft'](data['img'][frm_idx])
                 disps, net_h, _ = self.networks['TIDE_Up'](fmap_img, fmap_pat, data['img'][frm_idx],
                                                            flow_init=disp_pred / 8.0, h=net_h)
                 disp_outs.append(disps[-1])
 
-            disp_outs.pop(0)  # Ignore the very first frame
+            if self.args.exp_type == 'online':
+                self.last_frm['disp'] = disp_outs[-1]
+                self.last_frm['img'] = data['img'][-1]
+                self.last_frm['net_h'] = net_h.detach()
+
+            disp_outs.pop(0)
 
         else:  # Sequence based.
             disp_outs = []
@@ -224,18 +278,75 @@ class ExpTIDEWorker(Worker):
         disps = net_out
         total_loss = torch.zeros(1).to(self.device)
 
-        dp_super_loss = torch.zeros(1).to(self.device)
-        for f in range(0, self.args.clip_len):
-            disp_est = disps[f]
-            mask = data['img_std'][f] if self.status == 'Train' else data['mask'][f]
-            mask[data['disp'][f] == 0] = 0.0
-            dp_super_loss += self.loss_record(
-                'dp-super', pred=disp_est, target=data['disp'][f], mask=mask
-            )
+        if self.args.loss_type == 'su':
+            dp_super_loss = torch.zeros(1).to(self.device)
+            for f in range(0, self.args.clip_len):
+                disp_est = disps[f]
+                mask = data['img_std'][f] if self.status == 'Train' else data['mask'][f]
+                # mask = data['center'][f]
+                mask[data['disp'][f] == 0] = 0.0
+                dp_super_loss += self.loss_record(
+                    'dp-super', pred=disp_est, target=data['disp'][f], mask=mask
+                )
             total_loss += dp_super_loss
+
+        elif self.args.loss_type == 'ph':
+            dp_ph_loss = torch.zeros(1).to(self.device)
+            for f in range(0, self.args.clip_len):
+                disp = disps[f]
+                mask = data['img_std'][f] if self.status == 'Train' else data['mask'][f]
+                mask[data['disp'][f] == 0] = 0.0
+                dp_ph_loss += self.loss_record(
+                    'dp-ph', img_dst=data['img'][f][:, :1], img_src=data['pat'][:, :1],
+                    disp_mat=disp, mask=mask, std=data['img_std'][f]
+                )
+            total_loss += dp_ph_loss
+
+        elif self.args.loss_type == 'pf':
+            dp_pf_loss, xp_weight, pt_cam_back, new_distribution, pt_cam_edge = self.loss_record(
+                'dp-pf', disp_list=disps, mpf_dots=data['mpf'],
+                distribution_dots=self.mpf_distribution, return_val_only=False
+            )
+            self.for_viz['pt_cam_back'] = pt_cam_back
+            self.for_viz['xp_weight'] = xp_weight
+            self.for_viz['pt_cam_edge'] = pt_cam_edge
+            self.mpf_distribution = new_distribution
+
+            if not torch.isnan(dp_pf_loss):
+                total_loss += dp_pf_loss
+
+            alpha_ph = 0.1
+            dp_ph_loss = torch.zeros(1).to(self.device)
+            mask_set = self.loss_funcs['dp-pf'].cal_mask_from_filter(data['mpf'], xp_weight, rad=3)
+            self.for_viz['mask_set'] = mask_set
+            for f in range(0, self.args.clip_len):
+                disp = disps[f]
+                mask = mask_set[f]  # * data['img_std'][f]
+                loss_val, img_wrp, img_err, _, _ = self.loss_record(
+                    'dp-ph', img_dst=data['img'][f][:, 1:], img_src=data['pat'][:, 1:],
+                    disp_mat=disp, mask=mask, std=data['img_std'][f], return_val_only=False
+                )
+                dp_ph_loss += loss_val
+            if not torch.isnan(dp_ph_loss):
+                total_loss += alpha_ph * dp_ph_loss
 
         self.avg_meters['Total'].update(total_loss, self.N)
         return total_loss
+
+    def callback_after_train(self, epoch):
+        pass
+
+    def check_save_res(self, epoch):
+        save_stone_flag = super().check_save_res(epoch)
+
+        if self.args.exp_type in ['train', 'eval'] and self.status == 'Eval':
+            save_status_flag = True
+        elif self.args.exp_type in ['online'] and self.status == 'Train':
+            save_status_flag = True
+        else:
+            save_status_flag = False
+
+        return save_stone_flag and save_status_flag
 
     def callback_save_res(self, epoch, data, net_out, dataset):
         """
@@ -288,7 +399,7 @@ class ExpTIDEWorker(Worker):
 
         pvf = plb.VisualFactory
         max_dp_err = 10.0
-        max_disp = 400.0
+        max_disp = 300.0
 
         disp_outs = net_out
 

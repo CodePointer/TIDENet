@@ -113,8 +113,7 @@ def get_args():
                         type=int)
     parser.add_argument('--remove_history',
                         help='Save old model.pt or not. Useful when your model is very large.',
-                        default='0',
-                        type=int)
+                        action='store_true')
 
     args = parser.parse_args()
     return args

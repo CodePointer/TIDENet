@@ -302,7 +302,7 @@ class Worker:
         for name in self.avg_meters.keys():
             self.loss_writer.add_scalar(f'{tag}-epoch/{name}', self.avg_meters[name].get_epoch(), epoch)
             self.avg_meters[name].clear_epoch()
-        self.logging(f'Timings: {stopwatch}, total_loss={total_loss}', tag=tag, step=epoch)
+        self.logging(f'[{self.status}]-Timings: {stopwatch}, total_loss={total_loss}', tag=tag, step=epoch)
 
         # Markdown best performance
         target_tag = 'eval' if not isinstance(self.test_dataset, list) else 'eval0'  # First
@@ -344,6 +344,9 @@ class Worker:
     def train_epoch(self, epoch):
         self.stopwatch = plb.StopWatch()
         self.status = 'Train'
+
+        if self.train_dataset is None:
+            return
 
         #
         # Set dataloader and networks
@@ -413,6 +416,9 @@ class Worker:
         self.status = 'Eval'
 
         def apply_test(test_dataset, epoch, tag):
+            if test_dataset is None:
+                return
+
             test_sampler = None
             test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1, shuffle=False,
                                                       num_workers=self.args.num_workers, drop_last=True,

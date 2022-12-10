@@ -10,38 +10,44 @@ from models.base_dataset import BaseDataset
 
 
 # - Coding Part - #
-def augment_image(img, rng, max_blur=1.5, max_noise=10.0, max_sp_noise=0.001):
-    # get min/max values of image
-    min_val = np.min(img)
-    max_val = np.max(img)
+def augment_images(imgs, rng, max_blur=2.5, max_noise=10.0, max_sp_noise=0.001):
+    min_balance, max_balance = rng.uniform(0, 0.1), rng.uniform(0.8, 1.0)
+    for i in range(len(imgs)):
+        # get min/max values of image
+        min_val = np.min(imgs[i])
+        max_val = np.max(imgs[i])
 
-    # init augmented image
-    img_aug = img
+        # init augmented image
+        img_aug = imgs[i]
 
-    # gaussian smoothing
-    if rng.uniform(0, 1) < 0.5:
-        img_aug = cv2.GaussianBlur(img_aug, (5, 5), rng.uniform(0.2, max_blur))
+        # gaussian smoothing
+        if rng.uniform(0, 1) < 0.5:
+            img_aug = cv2.GaussianBlur(img_aug, (5, 5), rng.uniform(0.5, max_blur))
 
-    # per-pixel gaussian noise
-    img_aug = img_aug + rng.randn(*img_aug.shape) * rng.uniform(0.0, max_noise) / 255.0
+        # per-pixel gaussian noise
+        img_aug = img_aug + rng.randn(*img_aug.shape) * rng.uniform(0.0, max_noise) / 255.0
 
-    # salt-and-pepper noise
-    if rng.uniform(0, 1) < 0.5:
-        ratio = rng.uniform(0.0, max_sp_noise)
-        img_shape = img_aug.shape
-        img_aug = img_aug.flatten()
-        coord = rng.choice(np.size(img_aug), int(np.size(img_aug) * ratio))
-        img_aug[coord] = max_val
-        coord = rng.choice(np.size(img_aug), int(np.size(img_aug) * ratio))
-        img_aug[coord] = min_val
-        img_aug = np.reshape(img_aug, img_shape)
+        # salt-and-pepper noise
+        if rng.uniform(0, 1) < 0.5:
+            ratio = rng.uniform(0.0, max_sp_noise)
+            img_shape = img_aug.shape
+            img_aug = img_aug.flatten()
+            coord = rng.choice(np.size(img_aug), int(np.size(img_aug) * ratio))
+            img_aug[coord] = max_val
+            coord = rng.choice(np.size(img_aug), int(np.size(img_aug) * ratio))
+            img_aug[coord] = min_val
+            img_aug = np.reshape(img_aug, img_shape)
 
-    # clip intensities back to [0,1]
-    img_aug = np.maximum(img_aug, 0.0)
-    img_aug = np.minimum(img_aug, 1.0)
+        # clip intensities back to [0,1]
+        img_aug = np.maximum(img_aug, 0.0)
+        img_aug = np.minimum(img_aug, 1.0)
 
-    # return image
-    return img_aug.astype(np.float32)
+        # White balance
+        img_aug = (img_aug - min_balance) / (max_balance - min_balance)
+        img_aug = np.clip(img_aug, 0.0, 1.0)
+
+        # return image
+        imgs[i] = img_aug.astype(np.float32)
 
 
 class ImgClipDataset(BaseDataset):
@@ -104,38 +110,38 @@ class ImgClipDataset(BaseDataset):
             img = plb.imload(seq_folder / 'img' / f'img_{frm_idx}.png', scale=255, bias=0, flag_tensor=False)
             if self.apply_blur:
                 img = cv2.GaussianBlur(img, (7, 7), sigmaX=self.sigma)
-            if self.data_aug:
-                img = augment_image(img, self.rng)
-            img = plb.a2t(img)
+            # img = plb.a2t(img)
             imgs.append(img)
-        ret['img'] = torch.cat(imgs, dim=0)
+        if self.data_aug:
+            augment_images(imgs, self.rng)
+        ret['img'] = torch.cat([plb.a2t(img) for img in imgs], dim=0)
 
         if (seq_folder / 'disp').exists():
             disps = []
             for i in range(self.clip_len):
                 frm_idx = frm_start + i * self.frm_step
                 disp = plb.imload(seq_folder / 'disp' / f'disp_{frm_idx}.png', scale=1e2, bias=0)
-                disp[:, :, :320] = 0.0
+                # disp[:, :, :320] = 0.0
                 disps.append(disp)
             ret['disp'] = torch.cat(disps, dim=0)
 
-        if (seq_folder / 'mask_obj').exists():
+        if (seq_folder / 'mask').exists():
             masks = []
             for i in range(self.clip_len):
                 frm_idx = frm_start + i * self.frm_step
-                mask = plb.imload(seq_folder / 'mask_obj' / f'mask_{frm_idx}.png', scale=255, bias=0)
+                mask = plb.imload(seq_folder / 'mask' / f'mask_{frm_idx}.png', scale=255, bias=0)
                 masks.append(mask)
             ret['mask'] = torch.cat(masks, dim=0)
         else:
             ret['mask'] = torch.ones_like(ret['img'])
 
-        if (seq_folder / 'mask_center').exists():
-            masks = []
-            for i in range(self.clip_len):
-                frm_idx = frm_start + i * self.frm_step
-                mask = plb.imload(seq_folder / 'mask_center' / f'mask_{frm_idx}.png', scale=255, bias=0)
-                masks.append(mask)
-            ret['center'] = torch.cat(masks, dim=0)
+        # if (seq_folder / 'mask_center').exists():
+        #     masks = []
+        #     for i in range(self.clip_len):
+        #         frm_idx = frm_start + i * self.frm_step
+        #         mask = plb.imload(seq_folder / 'mask_center' / f'mask_{frm_idx}.png', scale=255, bias=0)
+        #         masks.append(mask)
+        #     ret['center'] = torch.cat(masks, dim=0)
 
         return ret
 

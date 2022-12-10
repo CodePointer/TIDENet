@@ -213,15 +213,11 @@ class VisualFactory:
 
 # - Coding Part: Funcs - #
 def subfolders(folder):
-    if folder is None:
+    if folder is None or folder == '':
         return None
-    if not isinstance(folder, Path):
+    if isinstance(folder, str):
         folder = Path(folder)
-    folders = []
-    for path in folder.glob('*'):
-        if path.is_dir():
-            folders.append(path)
-    return sorted(folders)
+    return sorted([x for x in folder.glob('*') if x.is_dir()])
 
 
 def a2t(in_array, permute=True):
