@@ -78,7 +78,8 @@ class ImgClipDataset(BaseDataset):
         self.rng = np.random.RandomState(seed=42)
         self.data_aug = aug_flag
 
-        pattern_path = list((data_folder / 'pat').glob('pat_*.png'))[-1]
+        # pattern_path = list((data_folder / 'pat').glob('pat_*.png'))[-1]  Bug. This may result in pat_9.png
+        pattern_path = data_folder / 'pat/pat_42.png'
 
         self.pattern = plb.imload(pattern_path, scale=255.0, bias=0.0, flag_tensor=False)
         if self.apply_blur:
