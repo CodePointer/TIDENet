@@ -46,7 +46,7 @@ class ExpInitWorker(Worker):
                 data_folder=train_folder,
                 clip_len=self.args.clip_len,
                 frm_step=1,
-                clip_jump=0,
+                clip_jump=32,
                 blur=False,
                 aug_flag=True,
             )
@@ -97,7 +97,7 @@ class ExpInitWorker(Worker):
             Keys will be used for avg_meter.
         """
         self.super_dist = SuperviseDistLoss(dist='smoothl1')
-        self.lcn_layer = LCN(radius=5, epsilon=1e-6)
+        self.lcn_layer = LCN(radius=9, epsilon=1e-6)
         self.loss_funcs['dp-super'] = self.super_dist
         self.logging(f'Loss types: {self.loss_funcs.keys()}')
 
@@ -116,6 +116,13 @@ class ExpInitWorker(Worker):
                 std_list = []
                 for img in torch.chunk(data[key], self.args.clip_len, dim=1):
                     img_lcn, img_std = self.lcn_layer(img)
+                    
+                    # print(img_std[0].max(), img_std[0].min())
+                    # print(img_std[0].shape)
+                    # plb.imsave('img-lcn.png', img_lcn[0], scale=12.5, bias=127.0)
+                    # plb.imsave('img-std.png', img_std[0], scale=255.0 * 4.0, bias=0)
+                    # plb.imviz(img, 'img', 0)
+                    
                     img_list.append(torch.cat([img, img_lcn], dim=1))
                     std_list.append(img_std)
                 data[key] = img_list
@@ -160,9 +167,9 @@ class ExpInitWorker(Worker):
         dp_super_loss = torch.zeros(1).to(self.device)
         for f in range(0, self.args.clip_len):
             disp_est = disps[f]
-            mask = data['img_std'][f] if self.status == 'Train' else data['mask'][f]
+            # mask = data['img_std'][f] if self.status == 'Train' else data['mask'][f]
             dp_super_loss += self.loss_record(
-                'dp-super', pred=disp_est, target=data['disp'][f], mask=mask
+                'dp-super', pred=disp_est, target=data['disp'][f], # mask=mask
             )
             total_loss += dp_super_loss
 
