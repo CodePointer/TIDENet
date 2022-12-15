@@ -68,6 +68,7 @@ class ImgClipDataset(BaseDataset):
         self.total_sequence = int(config['Data']['total_sequence'])
         self.frm_len = int(config['Data']['frm_len'])
         self.imsize = [int(x) for x in config['Data']['img_size'].split(',')]
+        self.imsize.reverse()  # [hei, wid]
 
         self.seq_folders = sorted(list(data_folder.glob('scene_*')))
 
@@ -92,7 +93,9 @@ class ImgClipDataset(BaseDataset):
 
         frm_jump = frm_step * clip_len + clip_jump
         self.samples = []
-        for seq_folder in self.seq_folders:
+        for i, seq_folder in enumerate(self.seq_folders):
+            if i >= 8:
+                break
             for frm_start in range(0, self.frm_len, frm_jump):
                 if frm_start + frm_step * clip_len > self.frm_len:
                     continue

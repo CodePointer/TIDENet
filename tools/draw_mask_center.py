@@ -22,9 +22,9 @@ class MaskCenterDrawer:
 
         self.params.minThreshold = 10
         self.params.maxThreshold = 256
-        self.params.thresholdStep = 3
+        self.params.thresholdStep = 2
         self.params.minDistBetweenBlobs = 0
-        self.params.minRepeatability = 3
+        self.params.minRepeatability = 5
 
         self.params.filterByColor = True
         self.params.blobColor = 255
@@ -68,4 +68,4 @@ def main(data_folder):
 
 
 if __name__ == '__main__':
-    main(Path('C:/SLDataSet/TADE/4_VirtualDataCut'))
+    main(Path('C:/SLDataSet/TADE/5_RealDataCut'))

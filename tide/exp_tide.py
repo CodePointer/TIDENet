@@ -89,8 +89,8 @@ class ExpTIDEWorker(Worker):
                 self.networks (dict.)
             Keys will be used for network saving.
         """
-        self.networks['TIDE_Init'] = TIDEInit()
-        self.network_static_list.append('TIDE_Init')
+        # self.networks['TIDE_Init'] = TIDEInit()
+        # self.network_static_list.append('TIDE_Init')
         self.networks['TIDE_Ft'] = TIDEFeature()
         self.networks['TIDE_NtH'] = TIDEHidden()
         self.networks['TIDE_Up'] = TIDEUpdate(mask_flag=True, iter_times=1)
@@ -104,9 +104,9 @@ class ExpTIDEWorker(Worker):
             Keys will be used for avg_meter.
         """
         self.super_dist = SuperviseDistLoss(dist='smoothl1')
-        self.lcn_layer = LCN(radius=9, epsilon=1e-6)
+        self.lcn_layer = LCN(radius=11, epsilon=1e-6)
         self.warp_layer_dn8 = WarpLayer(self.imsize[0] // 8, self.imsize[1] // 8)
-        self.pf_estimator = PFlowEstimatorLK(*self.imsize)
+        self.pf_estimator = PFlowEstimatorLK(*self.imsize, win_rad=31)
         self.loss_funcs['dp-super'] = self.super_dist
         self.logging(f'Loss types: {self.loss_funcs.keys()}')
 
@@ -168,7 +168,8 @@ class ExpTIDEWorker(Worker):
             disp_outs = []
 
             with torch.no_grad():
-                disp = self.networks['TIDE_Init'](img=data['img'][0], pat=data['pat'])
+                # disp = self.networks['TIDE_Init'](img=data['img'][0], pat=data['pat'])
+                disp = torch.ones_like(data['img'][0][:, :1, :, :]) * 200.0
                 disp_outs.append(disp)
             net_h = self.networks['TIDE_NtH'](img=data['img'][0])
             fmap_pat = self.networks['TIDE_Ft'](img=data['pat'])
@@ -195,7 +196,8 @@ class ExpTIDEWorker(Worker):
             for frm_idx in range(self.args.clip_len):
                 if frm_start == 0 and frm_idx == 0:  # Very first frame
                     with torch.no_grad():
-                        disp = self.networks['TIDE_Init'](img=data['img'][frm_idx], pat=data['pat'])
+                        # disp = self.networks['TIDE_Init'](img=data['img'][frm_idx], pat=data['pat'])
+                        disp = torch.ones_like(data['img'][0][:, :1, :, :]) * 200.0
                         self.last_frm['net_h'] = self.networks['TIDE_NtH'](img=data['img'][frm_idx])
                         self.last_frm['fmap_pat'] = self.networks['TIDE_Ft'](img=data['pat'])
                 else:

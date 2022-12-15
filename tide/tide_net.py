@@ -13,7 +13,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from tide.submodules import SmallUpdateBlock, SmallEncoder
+from tide.submodules import SmallUpdateBlock, SmallEncoder, LargeEncoder
 from tide.submodules import CorrBlock1D, coords_grid, upflow8, dnflow8
 
 
@@ -22,22 +22,20 @@ class TIDEInit(nn.Module):
     def __init__(self, idim=2, fdim=128, hdim=96, cdim=64,
                  temp_type='gru', mask_flag=False, last_pred=False, iter_times=1):
         super(TIDEInit, self).__init__()
-        self.tide_feature = TIDEFeature(idim, fdim)
+        self.tide_feature = TIDEFeature(idim, fdim, encoder=LargeEncoder)
         self.tide_update = TIDEUpdate(idim, hdim, cdim, temp_type, mask_flag, last_pred, iter_times)
 
-    def forward(self, img, pat):
+    def forward(self, img, pat, flow_init=None):
         fmap_pat = self.tide_feature(img=pat)
         fmap_img = self.tide_feature(img=img)
-
-        disps, _, _ = self.tide_update(fmap_img, fmap_pat, img)
+        disps, _, _ = self.tide_update(fmap_img, fmap_pat, img, flow_init)
         return disps[0]
 
 
 class TIDEFeature(nn.Module):
-    def __init__(self, idim=2, fdim=128):
+    def __init__(self, idim=2, fdim=128, encoder=SmallEncoder):
         super(TIDEFeature, self).__init__()
-
-        self.fnet = SmallEncoder(input_dim=idim, output_dim=fdim, norm_fn='instance')
+        self.fnet = encoder(input_dim=idim, output_dim=fdim, norm_fn='instance')
 
     def forward(self, img):
         return self.fnet(img)

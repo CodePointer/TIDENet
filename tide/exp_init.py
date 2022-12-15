@@ -23,7 +23,6 @@ class ExpInitWorker(Worker):
         super().__init__(args)
 
         # init_dataset
-        self.imsize = None
         self.pattern = None
 
         # init_losses
@@ -46,7 +45,7 @@ class ExpInitWorker(Worker):
                 data_folder=train_folder,
                 clip_len=self.args.clip_len,
                 frm_step=1,
-                clip_jump=0,
+                clip_jump=32,
                 blur=False,
                 aug_flag=True,
             )
@@ -74,8 +73,13 @@ class ExpInitWorker(Worker):
             raise NotImplementedError(f'Wrong exp_type: {self.args.exp_type}')
 
         main_dataset = self.test_dataset if self.args.exp_type == 'eval' else self.train_dataset
-        self.imsize = main_dataset.get_size()
         self.pattern = main_dataset.get_pattern().unsqueeze(0)
+
+        if self.train_dataset is not None:
+            self.logging(f'Train dataset loaded: {self.train_dataset.get_tag()} - {len(self.train_dataset)} items.')
+        if self.test_dataset is not None:
+            self.logging(f'Test dataset loaded: {self.test_dataset.get_tag()} - {len(self.test_dataset)} items.')
+
         pass
 
     def init_networks(self):
@@ -97,7 +101,7 @@ class ExpInitWorker(Worker):
             Keys will be used for avg_meter.
         """
         self.super_dist = SuperviseDistLoss(dist='smoothl1')
-        self.lcn_layer = LCN(radius=5, epsilon=1e-6)
+        self.lcn_layer = LCN(radius=9, epsilon=1e-6)
         self.loss_funcs['dp-super'] = self.super_dist
         self.logging(f'Loss types: {self.loss_funcs.keys()}')
 
@@ -128,6 +132,12 @@ class ExpInitWorker(Worker):
             data['mask'][f] = data['mask'][f].to(self.device)
             data['img_std'][f] = data['img_std'][f].to(self.device)
 
+        # Create mask_obj
+        # data['mask_obj'] = []
+        # for f in range(self.args.clip_len):
+        #     mask_obj = [(data['disp'][f][n] > (data['disp'][f][n].min() + 10.0)).float() for n in range(self.args.batch_num)]
+        #     data['mask_obj'].append(torch.stack(mask_obj, dim=0))
+
         # pat
         batch = data['img'][0].shape[0]
         pat = self.pattern.repeat(batch, 1, 1, 1)
@@ -145,6 +155,8 @@ class ExpInitWorker(Worker):
         # frm_start = data['frm_start'].item()
         # self.for_viz['frm_start'] = int(frm_start)
         for frm_idx in range(0, self.args.clip_len):
+            # plb.imviz(data['img'][frm_idx][0, 1], 'img_lcn', 10, normalize=[-10.0, 10.0])
+            # plb.imviz(data['pat'][0, 1], 'pat_lcn', 0, normalize=[-10.0, 10.0])
             disp = self.networks['InitNet'](img=data['img'][frm_idx], pat=data['pat'])
             disp_outs.append(disp)
         return disp_outs
@@ -161,6 +173,7 @@ class ExpInitWorker(Worker):
         for f in range(0, self.args.clip_len):
             disp_est = disps[f]
             mask = data['img_std'][f] if self.status == 'Train' else data['mask'][f]
+            # mask = data['mask_obj'][f]
             dp_super_loss += self.loss_record(
                 'dp-super', pred=disp_est, target=data['disp'][f], mask=mask
             )
