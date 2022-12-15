@@ -51,7 +51,7 @@ class ExpTIDEWorker(Worker):
                 data_folder=train_folder,
                 clip_len=self.args.clip_len,
                 frm_step=1,
-                clip_jump=0,
+                clip_jump=32,
                 blur=False,
                 aug_flag=True,
             )

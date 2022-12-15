@@ -132,12 +132,6 @@ class ExpInitWorker(Worker):
             data['mask'][f] = data['mask'][f].to(self.device)
             data['img_std'][f] = data['img_std'][f].to(self.device)
 
-        # Create mask_obj
-        # data['mask_obj'] = []
-        # for f in range(self.args.clip_len):
-        #     mask_obj = [(data['disp'][f][n] > (data['disp'][f][n].min() + 10.0)).float() for n in range(self.args.batch_num)]
-        #     data['mask_obj'].append(torch.stack(mask_obj, dim=0))
-
         # pat
         batch = data['img'][0].shape[0]
         pat = self.pattern.repeat(batch, 1, 1, 1)
@@ -155,8 +149,6 @@ class ExpInitWorker(Worker):
         # frm_start = data['frm_start'].item()
         # self.for_viz['frm_start'] = int(frm_start)
         for frm_idx in range(0, self.args.clip_len):
-            # plb.imviz(data['img'][frm_idx][0, 1], 'img_lcn', 10, normalize=[-10.0, 10.0])
-            # plb.imviz(data['pat'][0, 1], 'pat_lcn', 0, normalize=[-10.0, 10.0])
             disp = self.networks['InitNet'](img=data['img'][frm_idx], pat=data['pat'])
             disp_outs.append(disp)
         return disp_outs
