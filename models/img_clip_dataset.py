@@ -64,11 +64,11 @@ class ImgClipDataset(BaseDataset):
         self.reverse_flag = int(config['Data']['reverse'])
         self.start_frm = None
         if self.reverse_flag:
-            self.start_frm = [int(x) for x in config['Data']['start_frm']]
+            self.start_frm = plb.str2tuple(config['Data']['start_frm'], int)
         self.total_sequence = int(config['Data']['total_sequence'])
         self.frm_len = int(config['Data']['frm_len'])
-        self.imsize = [int(x) for x in config['Data']['img_size'].split(',')]
-        self.imsize.reverse()  # [hei, wid]
+        self.imsize = plb.str2tuple(config['Data']['img_size'], int)
+        self.imsize = (self.imsize[1], self.imsize[0])  # [hei, wid]
 
         self.seq_folders = sorted(list(data_folder.glob('scene_*')))
 
@@ -87,7 +87,7 @@ class ImgClipDataset(BaseDataset):
             self.pattern = cv2.GaussianBlur(self.pattern, ksize=(7, 7), sigmaX=self.sigma)
         self.pattern = plb.a2t(self.pattern)
 
-        if (data_folder / 'pat_info.pt').exists():
+        if (data_folder / 'pat' / 'pat_info.pt').exists():
             dict_load = torch.load(pattern_path.parent / 'pat_info.pt')
             self.pat_info = {x: dict_load[x].unsqueeze(0) for x in dict_load}
 
@@ -106,7 +106,11 @@ class ImgClipDataset(BaseDataset):
 
     def __getitem__(self, idx):
         seq_folder, frm_start = self.samples[idx]
-        ret = {'idx': torch.Tensor([idx]), 'frm_start': torch.Tensor([frm_start])}
+        ret = {
+            'idx': torch.Tensor([idx]),
+            'frm_start': torch.Tensor([frm_start]),
+            'disp_flag': torch.ones(self.clip_len).to(torch.bool),
+        }
 
         imgs = []
         for i in range(self.clip_len):
@@ -120,32 +124,35 @@ class ImgClipDataset(BaseDataset):
             augment_images(imgs, self.rng)
         ret['img'] = torch.cat([plb.a2t(img) for img in imgs], dim=0)
 
+        masks = []
+        for i in range(self.clip_len):
+            frm_idx = frm_start + i * self.frm_step
+            mask_file = seq_folder / 'mask' / f'mask_{frm_idx}.png'
+            if not mask_file.exists():
+                masks.append(torch.ones_like(ret['img'][:1]))
+            else:
+                masks.append(plb.imload(mask_file, scale=255, bias=0))
+        ret['mask'] = torch.cat(masks, dim=0)
+
         if (seq_folder / 'disp').exists():
             disps = []
             for i in range(self.clip_len):
                 frm_idx = frm_start + i * self.frm_step
-                disp = plb.imload(seq_folder / 'disp' / f'disp_{frm_idx}.png', scale=1e2, bias=0)
-                # disp[:, :, :320] = 0.0
-                disps.append(disp)
+                disp_file = seq_folder / 'disp' / f'disp_{frm_idx}.png'
+                if not disp_file.exists():
+                    ret['disp_flag'][i] = False
+                    disps.append(torch.zeros_like(ret['img'][:1]))
+                else:
+                    disps.append(plb.imload(seq_folder / 'disp' / f'disp_{frm_idx}.png', scale=1e2, bias=0))
             ret['disp'] = torch.cat(disps, dim=0)
 
-        if (seq_folder / 'mask').exists():
+        if (seq_folder / 'mask_center').exists():
             masks = []
             for i in range(self.clip_len):
                 frm_idx = frm_start + i * self.frm_step
-                mask = plb.imload(seq_folder / 'mask' / f'mask_{frm_idx}.png', scale=255, bias=0)
+                mask = plb.imload(seq_folder / 'mask_center' / f'mask_{frm_idx}.png', scale=255, bias=0)
                 masks.append(mask)
-            ret['mask'] = torch.cat(masks, dim=0)
-        else:
-            ret['mask'] = torch.ones_like(ret['img'])
-
-        # if (seq_folder / 'mask_center').exists():
-        #     masks = []
-        #     for i in range(self.clip_len):
-        #         frm_idx = frm_start + i * self.frm_step
-        #         mask = plb.imload(seq_folder / 'mask_center' / f'mask_{frm_idx}.png', scale=255, bias=0)
-        #         masks.append(mask)
-        #     ret['center'] = torch.cat(masks, dim=0)
+            ret['center'] = torch.cat(masks, dim=0)
 
         return ret
 

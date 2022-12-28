@@ -303,3 +303,8 @@ def imviz(img, name='DEFAULT', wait=0, normalize=None):
         img_copy = np.clip(img_copy, 0, 1.0)
     cv2.imshow(name, (img_copy * 255.0).astype(np.uint8))
     return cv2.waitKey(wait)
+
+
+def str2tuple(input_string, item_type=float):
+    """.ini file processing function."""
+    return tuple([item_type(x.strip()) for x in input_string.split(',')])

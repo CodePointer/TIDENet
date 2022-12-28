@@ -94,8 +94,8 @@ class ExpTIDEWorker(Worker):
         self.networks['TIDE_Ft'] = TIDEFeature()
         self.networks['TIDE_NtH'] = TIDEHidden()
         self.networks['TIDE_Up'] = TIDEUpdate(mask_flag=True, iter_times=1)
-        self.logging(f'--networks: {",".join(self.networks.keys())}')
-        self.logging(f'--networks-static: {",".join(self.network_static_list)}')
+        self.logging(f'Networks: {",".join(self.networks.keys())}')
+        self.logging(f'Networks-static: {",".join(self.network_static_list)}')
 
     def init_losses(self):
         """
@@ -194,24 +194,23 @@ class ExpTIDEWorker(Worker):
             frm_start = data['frm_start'].item()
             self.for_viz['frm_start'] = int(frm_start)
             for frm_idx in range(self.args.clip_len):
-                if frm_start == 0 and frm_idx == 0:  # Very first frame
-                    with torch.no_grad():
-                        # disp = self.networks['TIDE_Init'](img=data['img'][frm_idx], pat=data['pat'])
-                        disp = torch.ones_like(data['img'][0][:, :1, :, :]) * 200.0
-                        self.last_frm['net_h'] = self.networks['TIDE_NtH'](img=data['img'][frm_idx])
+                with torch.no_grad():
+                    if frm_start == 0 and frm_idx == 0:  # Very first frame
+                        disp_pred = torch.ones_like(data['img'][0][:, :1, :, :]) * 200.0
+                        net_h = self.networks['TIDE_NtH'](img=data['img'][frm_idx])
                         self.last_frm['fmap_pat'] = self.networks['TIDE_Ft'](img=data['pat'])
-                else:
-                    with torch.no_grad():
-                        fmap_img = self.networks['TIDE_Ft'](img=data['img'][frm_idx])
+                    else:
                         disp_lst = self.last_frm['disp'].detach()
                         pf_dp_mat = data['pf'][frm_idx]
                         disp_pred = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=disp_lst) - pf_dp_mat
                         net_h = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=self.last_frm['net_h']).detach()
-                    disps, net_h, _ = self.networks['TIDE_Up'](fmap_img, self.last_frm['fmap_pat'],
-                                                               data['img'][frm_idx], flow_init=disp_pred / 8.0,
-                                                               h=net_h)
-                    self.last_frm['net_h'] = net_h
-                    disp = disps[0]
+
+                fmap_img = self.networks['TIDE_Ft'](img=data['img'][frm_idx])
+                disps, net_h, _ = self.networks['TIDE_Up'](fmap_img, self.last_frm['fmap_pat'],
+                                                           data['img'][frm_idx], flow_init=disp_pred / 8.0,
+                                                           h=net_h)
+                self.last_frm['net_h'] = net_h
+                disp = disps[0]
                 self.last_frm['disp'] = disp
                 self.last_frm['img'] = data['img'][frm_idx]
                 disp_outs.append(disp)
@@ -257,12 +256,6 @@ class ExpTIDEWorker(Worker):
             disp_est = net_out[frm_idx][0]
             plb.imsave(seq_out_dir / 'disp' / f'disp_{frm_idx + frm_start}.png', disp_est,
                        scale=1e2, img_type=np.uint16, mkdir=True)
-
-        # Mask
-        # for frm_idx in range(self.args.clip_len):
-        #     mask_mpf = self.for_viz['mask_set'][frm_idx][0]
-        #     plb.imsave(seq_out_dir / 'mask_mpf' / f'mask_{frm_idx + frm_start}.png', mask_mpf, mkdir=True)
-
         pass
 
     def check_img_visual(self, **kwargs):

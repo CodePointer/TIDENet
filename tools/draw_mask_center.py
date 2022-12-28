@@ -53,6 +53,15 @@ class MaskCenterDrawer:
         return mask_u8
 
 
+def img2center(img_file, center_file, drawer=None):
+    if drawer is None:
+        drawer = MaskCenterDrawer()
+    img = cv2.imread(str(img_file), cv2.IMREAD_GRAYSCALE)
+    dots = drawer.detect(img)
+    mask = drawer.draw_center(img, dots)
+    cv2.imwrite(str(center_file), mask)
+
+
 def main(data_folder):
     folder_list = [x for x in data_folder.glob('scene_*') if x.is_dir()]
     drawer = MaskCenterDrawer()
@@ -61,10 +70,11 @@ def main(data_folder):
         img_folder = folder / 'img'
         total_frm = len(list(img_folder.glob('*.png')))
         for frm_idx in tqdm(range(total_frm), desc=folder.name):
-            img = cv2.imread(str(img_folder / f'img_{frm_idx}.png'), cv2.IMREAD_GRAYSCALE)
-            dots = drawer.detect(img)
-            mask = drawer.draw_center(img, dots)
-            cv2.imwrite(str(folder / 'mask_center' / f'mask_{frm_idx}.png'), mask)
+            img2center(
+                img_file=img_folder / f'img_{frm_idx}.png',
+                center_file=folder / 'mask_center' / f'mask_{frm_idx}.png',
+                drawer=drawer
+            )
 
 
 if __name__ == '__main__':

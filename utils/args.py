@@ -28,7 +28,7 @@ def get_args():
     # Required by base worker
     parser.add_argument('--argset',
                         help='Decide the worker for experiment.',
-                        choices=['tide', 'init'],
+                        choices=['tide', 'init', 'oade'],
                         required=True,
                         type=str)
     parser.add_argument('--debug_mode',
