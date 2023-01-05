@@ -9,7 +9,7 @@ from pathlib import Path
 import utils.pointerlib as plb
 from utils.pattern_flow import PFlowEstimatorLK
 from worker.worker import Worker
-from tide.tide_net import TIDEFeature, TIDEHidden, TIDEUpdate, TIDEInit
+from tide.tide_net import TIDEFeature, TIDEHidden, TIDEUpdate
 from models.img_clip_dataset import ImgClipDataset
 from models.supervise import SuperviseDistLoss
 from models.layers import LCN, WarpLayer
@@ -34,7 +34,9 @@ class ExpTIDEWorker(Worker):
         self.warp_layer_dn8 = None
 
         self.last_frm = {}
-        self.for_viz = {'frm_max': 128}
+        self.for_viz = {
+            'frm_viz': [0, 1999],  # Frm number for visualization
+        }
 
     def init_dataset(self):
         """
@@ -266,10 +268,12 @@ class ExpTIDEWorker(Worker):
         """
         if self.status == 'Train':
             return super().check_img_visual(**kwargs)
-        else:
+        else:  # self.status == 'Eval'
             # Check frm_start & frm_end
-            if kwargs['idx'] * self.args.clip_len <= self.for_viz['frm_max']:
-                if kwargs['idx'] % 16 == 0:
+            frm_start = kwargs['data']['frm_start'].detach().cpu().item()
+            frm_end = frm_start + self.args.clip_len
+            for frm_num in self.for_viz['frm_viz']:
+                if frm_start <= frm_num < frm_end:
                     return True
             return False
 
@@ -288,9 +292,9 @@ class ExpTIDEWorker(Worker):
         disp_outs = net_out
 
         # Visualize disparity & errors
-
         disp_gts = []
         for f in range(0, self.args.clip_len):
+
             disps = []
             disp_list = disp_outs[f]
             total_len = len(disp_list)
@@ -307,7 +311,7 @@ class ExpTIDEWorker(Worker):
             frm_idx = f if self.status == 'Train' else self.for_viz['frm_start'] + f
             self.loss_writer.add_image(f'{tag}/disp_est{frm_idx}', disp_viz, step)
 
-        gt_viz = pvf.img_concat(disp_gts, self.args.clip_len, 1)
+        gt_viz = pvf.img_concat(disp_gts, len(disp_gts), 1)
         self.loss_writer.add_image(f'{tag}/disp_rs', gt_viz, step)
 
         self.loss_writer.flush()

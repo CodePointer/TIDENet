@@ -400,7 +400,7 @@ class Worker:
                                               tag='train', step=self.n_iter)
 
             # Draw image
-            if self.check_img_visual():
+            if self.check_img_visual(idx=idx, data=data):
                 self.callback_img_visual(data=data, net_out=output, tag='train', step=self.n_iter)
 
             if self.args.debug_mode:
@@ -442,7 +442,7 @@ class Worker:
                         self.callback_save_res(epoch=epoch, data=data, net_out=net_out, dataset=test_dataset)
 
                     # Draw image
-                    if self.check_img_visual(idx=idx):
+                    if self.check_img_visual(idx=idx, data=data):
                         self.callback_img_visual(data=data, net_out=net_out, tag=tag, step=epoch)
 
                     # Report in real-time
