@@ -70,7 +70,7 @@ class ConvLSTM(nn.Module):
 
 
 class SmallMotionEncoder(nn.Module):
-    def __init__(self, corr_levels=0, corr_radius=0, idim=None):
+    def __init__(self, corr_levels=4, corr_radius=3, odim=80, idim=None):
         super(SmallMotionEncoder, self).__init__()
         cor_planes = corr_levels * (2 * corr_radius + 1) ** 2
         if idim is not None:
@@ -78,7 +78,7 @@ class SmallMotionEncoder(nn.Module):
         self.convc1 = nn.Conv2d(cor_planes, 96, 1, padding=0)
         self.convf1 = nn.Conv2d(1, 64, 7, padding=3)
         self.convf2 = nn.Conv2d(64, 32, 3, padding=1)
-        self.conv = nn.Conv2d(128, 80, 3, padding=1)
+        self.conv = nn.Conv2d(128, odim, 3, padding=1)
 
     def forward(self, flow, corr):
         cor = F.relu(self.convc1(corr))
@@ -90,11 +90,12 @@ class SmallMotionEncoder(nn.Module):
 
 
 class SmallUpdateBlock(nn.Module):
-    def __init__(self, corr_levels, corr_radius, temp='gru', hidden_dim=96, mask_flag=False, mask_rad=3):
+    def __init__(self, corr_levels, corr_radius, cdim, temp='gru', hidden_dim=96, mask_flag=False, mask_rad=3):
         super(SmallUpdateBlock, self).__init__()
-        self.encoder = SmallMotionEncoder(corr_levels, corr_radius)
+        odim = 80
+        self.encoder = SmallMotionEncoder(corr_levels, corr_radius, odim)
         self.temporal_type = temp
-        input_dim = 80 + 1 + 64
+        input_dim = odim + 1 + cdim
         if temp == 'gru':
             self.temp = ConvGRU(hidden_dim=hidden_dim, input_dim=input_dim)
         elif temp == 'lstm':
@@ -223,17 +224,18 @@ class SmallEncoder(nn.Module):
         super(SmallEncoder, self).__init__()
         self.norm_fn = norm_fn
 
-        # output_dim = 128
-        # conv1_out = 32
-        # layer1_out = 32
-        # layer2_out = 64
-        # layer3_out = 96
-
-        output_dim = 256
-        conv1_out = 64
-        layer1_out = 64
-        layer2_out = 128
-        layer3_out = 256
+        if output_dim == 128 or output_dim == 96:
+            conv1_out = 32
+            layer1_out = 32
+            layer2_out = 64
+            layer3_out = 96
+        elif output_dim == 256:
+            conv1_out = 64
+            layer1_out = 64
+            layer2_out = 128
+            layer3_out = 256
+        else:
+            raise NotImplementedError('output_dim invalid.')
 
         if self.norm_fn == 'group':
             self.norm1 = nn.GroupNorm(num_groups=8, num_channels=32)

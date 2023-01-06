@@ -62,7 +62,7 @@ class TIDEUpdate(nn.Module):
         self.temp_type = temp_type
 
         self.cnet = SmallEncoder(input_dim=idim, output_dim=cdim, norm_fn='none')
-        self.update_block = SmallUpdateBlock(self.corr_levels, self.corr_radius,
+        self.update_block = SmallUpdateBlock(self.corr_levels, self.corr_radius, cdim,
                                              temp=self.temp_type, hidden_dim=hdim, mask_flag=mask_flag)
         self.last_pred = last_pred
 
