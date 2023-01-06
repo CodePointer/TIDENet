@@ -93,9 +93,21 @@ class ExpTIDEWorker(Worker):
         """
         # self.networks['TIDE_Init'] = TIDEInit()
         # self.network_static_list.append('TIDE_Init')
-        self.networks['TIDE_Ft'] = TIDEFeature()
-        self.networks['TIDE_NtH'] = TIDEHidden()
-        self.networks['TIDE_Up'] = TIDEUpdate(mask_flag=True, iter_times=1)
+        self.networks['TIDE_Ft'] = TIDEFeature(
+            idim=2,
+            fdim=256
+        )
+        self.networks['TIDE_NtH'] = TIDEHidden(
+            idim=2,
+            hdim=128,
+        )
+        self.networks['TIDE_Up'] = TIDEUpdate(
+            idim=2,
+            hdim=128,
+            cdim=128,
+            mask_flag=True,
+            iter_times=1
+        )
         self.logging(f'Networks: {",".join(self.networks.keys())}')
         self.logging(f'Networks-static: {",".join(self.network_static_list)}')
 
