@@ -281,6 +281,11 @@ class ExpTIDEWorker(Worker):
         if self.status == 'Train':
             return super().check_img_visual(**kwargs)
         else:  # self.status == 'Eval'
+            if self.loss_writer is None:
+                return False
+            if self.args.debug_mode:
+                return True
+
             # Check frm_start & frm_end
             frm_start = kwargs['data']['frm_start'].detach().cpu().item()
             frm_end = frm_start + self.args.clip_len
