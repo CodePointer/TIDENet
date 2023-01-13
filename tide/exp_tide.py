@@ -9,7 +9,7 @@ from pathlib import Path
 import utils.pointerlib as plb
 from utils.pattern_flow import PFlowEstimatorLK
 from worker.worker import Worker
-from tide.tide_net import TIDEFeature, TIDEHidden, TIDEUpdate
+from tide.tide_net import TIDEInit, TIDEFeature, TIDEHidden, TIDEUpdate
 from models.img_clip_dataset import ImgClipDataset
 from models.supervise import SuperviseDistLoss
 from models.layers import LCN, WarpLayer
@@ -35,7 +35,7 @@ class ExpTIDEWorker(Worker):
 
         self.last_frm = {}
         self.for_viz = {
-            'frm_viz': [0, 1999],  # Frm number for visualization
+            'frm_viz': [0, 255],  # Frm number for visualization
         }
 
     def init_dataset(self):
@@ -95,16 +95,16 @@ class ExpTIDEWorker(Worker):
         # self.network_static_list.append('TIDE_Init')
         self.networks['TIDE_Ft'] = TIDEFeature(
             idim=2,
-            fdim=256
+            fdim=128,   # 256
         )
         self.networks['TIDE_NtH'] = TIDEHidden(
             idim=2,
-            hdim=128,
+            hdim=96,    # 128
         )
         self.networks['TIDE_Up'] = TIDEUpdate(
             idim=2,
-            hdim=128,
-            cdim=128,
+            hdim=96,    # 128
+            cdim=64,    # 128
             mask_flag=True,
             iter_times=1
         )
@@ -303,9 +303,21 @@ class ExpTIDEWorker(Worker):
 
         disp_outs = net_out
 
+        seq_tag = ''
+        if self.status == 'Eval':
+            data_idx = int(data['idx'].item())
+            seq_folder, frm_start = self.test_dataset.samples[data_idx]
+            seq_tag = f'{seq_folder.name}-'
+
         # Visualize disparity & errors
         disp_gts = []
         for f in range(0, self.args.clip_len):
+
+            frm_idx = f
+            if self.status == 'Eval':
+                frm_idx = data['frm_start'] + f
+                if frm_idx not in self.for_viz['frm_viz']:
+                    continue
 
             disps = []
             disp_list = disp_outs[f]
@@ -320,11 +332,10 @@ class ExpTIDEWorker(Worker):
             disps.append(pvf.err_visual(super_err, mask_mat=mask, max_val=max_dp_err, color_map=cv2.COLORMAP_HOT))
 
             disp_viz = pvf.img_concat(disps, total_len, 2)
-            frm_idx = f if self.status == 'Train' else self.for_viz['frm_start'] + f
-            self.loss_writer.add_image(f'{tag}/disp_est{frm_idx}', disp_viz, step)
+            self.loss_writer.add_image(f'{tag}/{seq_tag}disp_est{frm_idx}', disp_viz, step)
 
         gt_viz = pvf.img_concat(disp_gts, len(disp_gts), 1)
-        self.loss_writer.add_image(f'{tag}/disp_rs', gt_viz, step)
+        self.loss_writer.add_image(f'{tag}/{seq_tag}disp_rs', gt_viz, step)
 
         self.loss_writer.flush()
         pass

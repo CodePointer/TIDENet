@@ -224,7 +224,7 @@ class SmallEncoder(nn.Module):
         super(SmallEncoder, self).__init__()
         self.norm_fn = norm_fn
 
-        if output_dim == 128 or output_dim == 96:
+        if output_dim in [64, 96, 128]:
             conv1_out = 32
             layer1_out = 32
             layer2_out = 64
