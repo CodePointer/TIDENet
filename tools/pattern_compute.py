@@ -4,6 +4,7 @@ import utils.pointerlib as plb
 import cv2
 import numpy as np
 import torch
+from pathlib import Path
 from tqdm import tqdm
 from typing import Optional, List
 
@@ -108,7 +109,7 @@ class MaskDrawer:
 
         self.params.filterByArea = True
         self.params.minArea = 0
-        self.params.maxArea = 50
+        self.params.maxArea = 20
 
         self.params.filterByCircularity = False
         self.params.filterByConvexity = False
@@ -260,8 +261,11 @@ def create_pattern_field(pattern_name, pattern_mask):
     # Write pid & xp
     pid_drawer = MaskDrawer(img_size=pattern.shape[-2:])
     dots = pid_drawer.detect_dots(pattern)
-    pat_pid = pid_drawer.create_field(dots, mask, max_dxy=[800, 1])
+    pat_pid = pid_drawer.create_field(dots, mask, max_dxy=[800, 4])
     pat_xp = pid_drawer.draw_coord(dots, pat_pid)
+    # mask_viz = pid_drawer.draw_mask(dots)
+    # plb.imviz(mask_viz, 'mask', 10)
+    # plb.imviz(pattern, 'pat', 0)
 
     # Write neighbor
     edge_drawer = MaskDrawer(img_size=pattern.shape[-2:])
@@ -288,12 +292,13 @@ def create_pattern_field(pattern_name, pattern_mask):
         'edge': plb.a2t(edge_mat.astype(np.int64)),  # [1, Kp, 8]
         'diff': plb.a2t(diff_mat.astype(np.float32))  # [2, Kp, 8]
     }
-    torch.save(save_dict, 'pat_info.pt')
+    torch.save(save_dict, str(pattern_name.parent / 'pat_info.pt'))
     return
 
 
 if __name__ == '__main__':
-    pattern_name = 'C:/SLDataSet/TADE/5_RealDataCut/pat/pat_42.png'
-    mask_name = 'C:/SLDataSet/TADE/5_RealDataCut/pat/mask.png'
-    create_pattern_field(pattern_name, mask_name)
+    create_pattern_field(
+        pattern_name=Path('C:/SLDataSet/TADE/pat_0.png'),
+        pattern_mask=Path('C:/SLDataSet/TADE/mask.png')
+    )
     pass

@@ -106,6 +106,7 @@ class TIDEUpdate(nn.Module):
 
         # Context network
         inp = torch.relu(self.cnet(img1))
+        # print('inp', inp[0, 40, 30, 40])
         if h is None:
             h = torch.zeros(fmap1.shape[0], self.hidden_dim, fmap1.shape[2], fmap1.shape[3]).to(fmap1.device)
         if c is None and self.temp_type == 'lstm':
@@ -125,7 +126,10 @@ class TIDEUpdate(nn.Module):
             corr = corr_fn(coords1)  # index correlation volume
 
             flow = coords0 - coords1
+
+            # print('h_before', h[0, 20, 30, 40])
             h, c, mask, delta_flow = self.update_block(inp, corr, flow, net_h=h, net_c=c)
+            # print('h_after', h[0, 20, 30, 40])
 
             # F(t+1) = F(t) + \Delta(t)
             coords1 = coords1 + delta_flow

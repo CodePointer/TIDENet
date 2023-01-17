@@ -210,14 +210,15 @@ class ExpTIDEWorker(Worker):
             for frm_idx in range(self.args.clip_len):
                 with torch.no_grad():
                     if frm_start == 0 and frm_idx == 0:  # Very first frame
-                        disp_pred = torch.ones_like(data['img'][0][:, :1, :, :]) * 200.0
-                        net_h = self.networks['TIDE_NtH'](img=data['img'][frm_idx])
+                        disp_lst = torch.ones_like(data['img'][0][:, :1, :, :]) * 200.0
+                        self.last_frm['net_h'] = self.networks['TIDE_NtH'](img=data['img'][frm_idx])
                         self.last_frm['fmap_pat'] = self.networks['TIDE_Ft'](img=data['pat'])
                     else:
                         disp_lst = self.last_frm['disp'].detach()
-                        pf_dp_mat = data['pf'][frm_idx]
-                        disp_pred = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=disp_lst) - pf_dp_mat
-                        net_h = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=self.last_frm['net_h']).detach()
+
+                    pf_dp_mat = data['pf'][frm_idx]
+                    disp_pred = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=disp_lst) - pf_dp_mat
+                    net_h = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=self.last_frm['net_h']).detach()
 
                 fmap_img = self.networks['TIDE_Ft'](img=data['img'][frm_idx])
                 disps, net_h, _ = self.networks['TIDE_Up'](fmap_img, self.last_frm['fmap_pat'],
@@ -320,7 +321,7 @@ class ExpTIDEWorker(Worker):
 
             frm_idx = f
             if self.status == 'Eval':
-                frm_idx = data['frm_start'] + f
+                frm_idx = data['frm_start'].item() + f
                 if frm_idx not in self.for_viz['frm_viz']:
                     continue
 
