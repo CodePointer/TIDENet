@@ -88,8 +88,8 @@ class ImgClipDataset(BaseDataset):
             self.pattern = cv2.GaussianBlur(self.pattern, ksize=(7, 7), sigmaX=self.sigma)
         self.pattern = plb.a2t(self.pattern)
 
-        if (data_folder / 'pat' / 'pat_info.pt').exists():
-            dict_load = torch.load(pattern_path.parent / 'pat_info.pt')
+        if (data_folder / 'pat' / 'info.pt').exists():
+            dict_load = torch.load(data_folder / 'pat' / 'info.pt')
             self.pat_info = {x: dict_load[x].unsqueeze(0) for x in dict_load}
 
         frm_jump = frm_step * clip_len + clip_jump

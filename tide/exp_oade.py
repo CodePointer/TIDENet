@@ -98,7 +98,7 @@ class ExpOADEWorker(ExpTIDEWorker):
             self.loss_funcs['dp-super'] = self.super_dist
         elif self.args.loss_type == 'ph':
             self.loss_funcs['dp-ph'] = self.warp_loss
-        elif self.args.loss_type == 'phpf':
+        elif self.args.loss_type == 'pf':
             self.loss_funcs['dp-ph'] = self.warp_loss
             self.loss_funcs['dp-pf'] = self.pf_dist
         else:
@@ -113,17 +113,15 @@ class ExpOADEWorker(ExpTIDEWorker):
         """
         data = super().data_process(idx, data)
 
+        # Blob center
+        assert 'center' in list(data.keys()), f'center data is required for exp_type=online.'
+
         # 1. Split rest
-        key_list = list(data.keys())
-        for key in key_list:
-            if key in ['center', 'pf_dot']:
-                data[key] = [x for x in torch.chunk(data[key], self.args.clip_len, dim=1)]
+        data['center'] = [x for x in torch.chunk(data['center'], self.args.clip_len, dim=1)]
 
         # 2. Copy to device
         for f in range(self.args.clip_len):
             data['center'][f] = data['center'][f].to(self.device)
-            # if data['disp_flag'][f]:
-            #     data['center'][f][data['disp'][f] == 0] = 0
 
         # 3. mpf part
         if data['frm_start'].item() == 0:
@@ -142,28 +140,32 @@ class ExpOADEWorker(ExpTIDEWorker):
         self.for_viz['frm_start'] = int(frm_start)
 
         # First frame
-        if frm_start == 0:
-            disp_lst = torch.ones_like(data['img'][0][:, :1, :, :]) * 200.0
-            net_h = self.networks['TIDE_NtH'](img=data['img'][0])
-        else:
-            disp_lst = self.last_frm['disp']
-            net_h = self.last_frm['net_h']
-
-        # Iteration
-        fmap_pat = self.networks['TIDE_Ft'](img=data['pat'])
         for frm_idx in range(self.args.clip_len):
-            pf_dp_mat = data['pf'][frm_idx]
-            disp_pred = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=disp_lst) - pf_dp_mat
-            net_h = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=net_h)
-            fmap_img = self.networks['TIDE_Ft'](data['img'][frm_idx])
-            disps, net_h, _ = self.networks['TIDE_Up'](fmap_img, fmap_pat, data['img'][frm_idx],
-                                                       flow_init=disp_pred / 8.0, h=net_h)
-            disp_outs.append(disps[-1])
+            with torch.no_grad():
+                if frm_start == 0 and frm_idx == 0:
+                    disp_lst = torch.ones_like(data['img'][0][:, :1, :, :]) * 200.0
+                    self.last_frm['net_h'] = self.networks['TIDE_NtH'](img=data['img'][frm_idx])
+                    self.last_frm['fmap_pat'] = self.networks['TIDE_Ft'](img=data['pat'])
+                else:
+                    try:
+                        disp_lst = self.last_frm['disp'].detach()
+                    except KeyError as e:
+                        print(frm_start, frm_idx, list(self.last_frm.keys()))
+                        raise e
+                pf_dp_mat = data['pf'][frm_idx]
+                disp_pred = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=disp_lst) - pf_dp_mat
+                net_h = self.warp_layer_dn8(disp_mat=pf_dp_mat / 8.0, src_mat=self.last_frm['net_h']).detach()
 
-        # Save things for next clip
-        self.last_frm['disp'] = disp_outs[-1].detach()
-        self.last_frm['img'] = data['img'][-1].detach()
-        self.last_frm['net_h'] = net_h.detach()
+            # Iteration
+            fmap_img = self.networks['TIDE_Ft'](data['img'][frm_idx])
+            disps, net_h, _ = self.networks['TIDE_Up'](fmap_img, self.last_frm['fmap_pat'], 
+                                                       data['img'][frm_idx], flow_init=disp_pred / 8.0,
+                                                       h=net_h)
+            self.last_frm['net_h'] = net_h
+            disp = disps[0]
+            self.last_frm['disp'] = disp
+            self.last_frm['img'] = data['img'][frm_idx]
+            disp_outs.append(disp)
 
         return disp_outs
 
@@ -211,7 +213,7 @@ class ExpOADEWorker(ExpTIDEWorker):
             if not torch.isnan(dp_pf_loss):
                 total_loss += dp_pf_loss
 
-            alpha_ph = 0.1
+            alpha_ph = 0.0  # TODO
             dp_ph_loss = torch.zeros(1).to(self.device)
             mask_set = self.loss_funcs['dp-pf'].cal_mask_from_filter(data['mpf'], xp_weight, rad=3)
             self.for_viz['mask_set'] = mask_set

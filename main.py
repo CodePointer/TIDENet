@@ -5,6 +5,7 @@ from utils.args import get_args, post_process
 from tide.exp_tide import ExpTIDEWorker
 from tide.exp_init import ExpInitWorker
 from tide.exp_oade import ExpOADEWorker
+from cmp.asn.exp_asn import ExpASNWorker
 
 
 # - Coding Part - #
@@ -13,6 +14,7 @@ def get_worker(args):
         'init': ExpInitWorker,
         'tide': ExpTIDEWorker,
         'oade': ExpOADEWorker,
+        'asn': ExpASNWorker,
     }
     assert args.argset in worker_set.keys()
     return worker_set[args.argset](args)

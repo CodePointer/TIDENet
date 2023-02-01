@@ -1,0 +1,23 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+
+    {
+      "name": "Python: main.py",
+      "type": "python",
+      "request": "launch",
+      "program": "~/anaconda3/lib/python3.6/site-packages/torch/distributed/launch.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--nproc_per_node=1",
+        "main.py",
+        "--config",
+        "./cmp/asn/asn_train.ini",
+      ],
+      "env": {"CUDA_VISIBLE_DEVICES": "0"}
+    }
+  ]
+}

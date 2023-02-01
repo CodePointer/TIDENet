@@ -24,11 +24,14 @@ def get_args():
                         help='Node rank for distributed training.',
                         type=int,
                         default=0)
+    parser.add_argument('--data_parallel',
+                        help='Parallel training flag when you have multiple cards.',
+                        action='store_true')
 
     # Required by base worker
     parser.add_argument('--argset',
                         help='Decide the worker for experiment.',
-                        choices=['tide', 'init', 'oade'],
+                        choices=['tide', 'init', 'oade', 'asn'],
                         required=True,
                         type=str)
     parser.add_argument('--debug_mode',
@@ -153,9 +156,9 @@ def post_process(args):
     torch.cuda.set_device(args.local_rank)
     if os.name == 'nt':
         args.data_parallel = False
-    else:
+    if args.data_parallel:
         init_process_group('nccl', init_method='env://')
-        args.data_parallel = True
+        
     args.device = torch.device(f'cuda:{args.local_rank}')
 
     return args

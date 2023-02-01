@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import utils.pointerlib as plb
+import pointerlib as plb
 import cv2
 import numpy as np
 import torch
@@ -292,13 +292,13 @@ def create_pattern_field(pattern_name, pattern_mask):
         'edge': plb.a2t(edge_mat.astype(np.int64)),  # [1, Kp, 8]
         'diff': plb.a2t(diff_mat.astype(np.float32))  # [2, Kp, 8]
     }
-    torch.save(save_dict, str(pattern_name.parent / 'pat_info.pt'))
+    torch.save(save_dict, str(pattern_name.parent / 'info.pt'))
     return
 
 
 if __name__ == '__main__':
     create_pattern_field(
-        pattern_name=Path('C:/SLDataSet/TADE/pat_0.png'),
-        pattern_mask=Path('C:/SLDataSet/TADE/mask.png')
+        pattern_name=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData/pat/pat_0.png'),
+        pattern_mask=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData/pat/mask.png')
     )
     pass
