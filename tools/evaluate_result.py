@@ -17,125 +17,158 @@ import numpy as np
 import cv2
 import torch
 import openpyxl
+from tqdm import tqdm
+import re
+import shutil
 # import open3d as o3d
 
 import pointerlib as plb
 
 
 # - Coding Part - #
+class Evaluator:
+    def __init__(self, workbook, flush_flag):
+        self.workbook = openpyxl.load_workbook(str(workbook))
+        self.flush_flag = flush_flag
 
-def evaluate(disp_gt, disp_map, mask_map, cell_set):
-    
-    def eval(gt, res, mask):
-        diff = (gt - res)
-        diff_vec = diff[mask > 0.0]
-        total_num = diff_vec.shape[0]
-        err10_num = (torch.abs(diff_vec) > 1.0).float().sum() / total_num
-        err20_num = (torch.abs(diff_vec) > 2.0).float().sum() / total_num
-        err50_num = (torch.abs(diff_vec) > 5.0).float().sum() / total_num
-        avg = torch.abs(diff_vec).sum() / total_num
-        return err10_num, err20_num, err50_num, avg
-        
-    if not isinstance(disp_gt, list):
-        disp_gt = [disp_gt]
-        disp_map = [disp_map]
-        mask_map = [mask_map]
-    
-    frm_num = len(disp_gt)
-    res_array = np.zeros([frm_num, 4])
-    for i, (gt, res, mask) in enumerate(zip(disp_gt, disp_map, mask_map)):
-        res_array[i] = eval(gt, res, mask)
-    res_avg = np.average(res_array, axis=0)
-    
-    for i in range(3):
-        cell_set[i].value = f'{res_avg[i] * 100.0:.2f}'
-    cell_set[3].value = f'{res_avg[3]}'
+    # def run(self, sheet_names=None):
+    #     # Calculate err
+    #     # if sheet_names is None:
+    #     #     sheet_names = self.workbook.get_sheet_names()
+    #     for scene_name in sheet_names:
+    #         self.process_dataset(scene_name)
+
+    def process_dataset(self, scene_name):
+        work_sheet = self.workbook[scene_name]
+        data_path = Path(work_sheet['B1'].value)
+        out_path = Path(work_sheet['B2'].value)
+
+        # load parameters
+        config = ConfigParser()
+        config.read(str(data_path / 'config.ini'), encoding='utf-8')
+        seq_num = int(config['Data']['total_sequence'])
+        frm_len = plb.str2tuple(config['Data']['frm_len'], int)
+        if len(frm_len) == 1:
+            frm_len = frm_len * seq_num
+        wid, hei = plb.str2tuple(config['Data']['img_size'], item_type=int)
+
+        # Get all exp_tags
+        start_row = 5
+        exp_set = sorted([x for x in out_path.glob('*') if x.is_dir()])
+        exp_num = len(exp_set)
+        for i, exp_path in enumerate(exp_set):
+            work_sheet.cell(row=start_row + i, column=1).value = exp_path.name
+            work_sheet.cell(row=start_row + i, column=2).value = str(exp_path)
+
+        # Evaluate: column = 3,4,5,6
+        for i in tqdm(range(exp_num), desc=scene_name):
+            row_idx = start_row + i
+
+            # Check if skip or not
+            flag_all_filled = True
+            for col_idx in [3, 4, 5, 6]:
+                cell_res = work_sheet.cell(row=row_idx, column=col_idx)
+                flag_all_filled = flag_all_filled and cell_res.value is not None
+            if not self.flush_flag and flag_all_filled:
+                continue
+
+            # Evaluate result and fill results
+            sub_folders = [x for x in (exp_set[i] / 'output' / data_path.name).glob('*') if x.is_dir()]
+            res_path = sorted(sub_folders)[-1]
+            res = self._evaluate_exp_outs(data_path, res_path, frm_len)
+            work_sheet.cell(row=row_idx, column=3).value = f'{res[0] * 100.0:.2f}'
+            work_sheet.cell(row=row_idx, column=4).value = f'{res[1] * 100.0:.2f}'
+            work_sheet.cell(row=row_idx, column=5).value = f'{res[2] * 100.0:.2f}'
+            work_sheet.cell(row=row_idx, column=5).value = f'{res[3]:.3f}'
+
+        pass
+
+    def _evaluate_exp_outs(self, data_path, res_path, frm_len):
+        res_array = []
+
+        seq_num = len([x for x in res_path.glob('scene_*') if x.is_dir()])
+        for seq_idx in range(seq_num):
+            gt_scene_folder = data_path / f'scene_{seq_idx:04}'
+            disp_gt_folder = gt_scene_folder / 'disp_gt'
+            if not disp_gt_folder.exists():
+                disp_gt_folder = gt_scene_folder / 'disp'
+            res_scene_folder = res_path / f'scene_{seq_idx:04}'
+            disp_res_folder = res_scene_folder / 'disp'
+
+            for frm_idx in range(frm_len):
+                disp_gt_path = disp_gt_folder / f'disp_{frm_idx}.png'
+                disp_res_path = disp_res_folder / f'disp_{frm_idx}.png'
+                if disp_gt_path.exists():
+                    disp_gt = plb.imload(disp_gt_path, scale=1e2)
+                    disp_res = plb.imload(disp_res_path, scale=1e2)
+                    mask = (disp_gt > 0.0).float()  # TODO
+                    diff = (disp_gt - disp_res)
+                    diff_vec = diff[mask > 0.0]
+                    total_num = diff_vec.shape[0]
+                    err10_num = (torch.abs(diff_vec) > 1.0).float().sum() / total_num
+                    err20_num = (torch.abs(diff_vec) > 2.0).float().sum() / total_num
+                    err50_num = (torch.abs(diff_vec) > 5.0).float().sum() / total_num
+                    avg = torch.abs(diff_vec).sum() / total_num
+                    res_array.append(np.array([err10_num, err20_num, err50_num, avg]))
+
+        res_array = np.stack(res_array, axis=0)
+        res_avg = np.average(res_array, axis=0)
+        return res_avg
+
+    def sum_average(self, scene_name):
+        src_work_sheet = self.workbook[scene_name]
+        dst_work_sheet = self.workbook[f'{scene_name}-Sum']
+
+        # Get all exp_tags & values
+        start_row = 2
+        raw_results = []
+        for row_idx in range(start_row, src_work_sheet.max_row + 1):
+            raw_results.append([
+                src_work_sheet.cell(row_idx, 1).value,
+                [
+                    src_work_sheet.cell(row_idx, 3),
+                    src_work_sheet.cell(row_idx, 4),
+                    src_work_sheet.cell(row_idx, 5),
+                    src_work_sheet.cell(row_idx, 6),
+                ]
+            ])
+
+        # Group
+        grouped_results = {}
+        for exp_tag, eval_res in raw_results:
+            exp_key = exp_tag
+            if '_exp' in exp_tag:
+                exp_key = exp_tag.split('_exp')[0]
+            if exp_key not in grouped_results:
+                grouped_results[exp_key] = []
+            grouped_results[exp_key].append(np.array(eval_res))
+
+        # Put into new sheet
+        for i, exp_tag in enumerate(grouped_results):
+            dst_work_sheet.cell(start_row + i, 1).value = exp_tag
+            exp_res = np.stack(grouped_results[exp_tag], axis=0)
+            exp_avg = np.average(exp_res, axis=0)
+            dst_work_sheet.cell(start_row + i, 2).value = f'{exp_avg[0] * 100.0:.2f}'
+            dst_work_sheet.cell(start_row + i, 3).value = f'{exp_avg[1] * 100.0:.2f}'
+            dst_work_sheet.cell(start_row + i, 4).value = f'{exp_avg[2] * 100.0:.2f}'
+            dst_work_sheet.cell(start_row + i, 5).value = f'{exp_avg[3]:.3f}'
 
 
-def draw_diff_viz(disp_gt, disp_map, mask):
-    diff = (disp_gt - disp_map)
-    step_err = torch.ones_like(diff)
-    step_err[torch.abs(diff) > 1.0] = 2.0
-    step_err[torch.abs(diff) > 2.0] = 3.0
-    step_err[torch.abs(diff) > 5.0] = 4.0
-    step_vis = plb.VisualFactory.err_visual(step_err, mask, max_val=4.0, color_map=cv2.COLORMAP_WINTER)
-    step_vis = cv2.cvtColor(plb.t2a(step_vis), cv2.COLOR_BGR2RGB)
-    return step_vis
-
-
-def process_scene(worksheet, params):
-    data_path = Path(worksheet['B1'].value)
-    res_path = Path(worksheet['B2'].value)
-
-    # Config file
-    config = ConfigParser()
-    config.read(str(data_path / 'config.ini'), encoding='utf-8')
-    seq_num = int(config['Data']['total_sequence'])
-    frm_len = int(config['Data']['frm_len'])
-    wid, hei = plb.str2tuple(config['Data']['img_size'], item_type=int)
-
-    # Get experiments
-    data_tags = [worksheet.cell(row=i + 1, column=1).value
-                 for i in range(4, worksheet.max_row)]
-    epoch_nums = [int(worksheet.cell(row=i + 1, column=3).value)
-                  for i in range(4, worksheet.max_row)]
-
-    # Load All GT
-    gts_idx = []
-    disp_gts = []
-    mask_mats = []
-    for seq_idx in range(seq_num):
-        for frm_idx in range(frm_len):
-            disp_gt_file = data_path / f'scene_{seq_idx:04}' / 'disp_gt' / f'disp_{frm_idx}.png'
-            # if not disp_gt_file.exists():
-            #    disp_gt_file = data_path / f'scene_{seq_idx:04}' / 'disp' / f'disp_{frm_idx}.png'
-            if disp_gt_file.exists():
-                disp_gt = plb.imload(disp_gt_file, scale=1e2)
-                mask_mat = (disp_gt > 0.0).float()
-                gts_idx.append((seq_idx, frm_idx))
-                disp_gts.append(disp_gt)
-                mask_mats.append(mask_mat)
-    pass
-
-    # Evaluate every experiments
-    for data_i, (data_tag, epoch_num) in enumerate(zip(data_tags, epoch_nums)):
-        print(data_tag)
-        row_i, col_i = 5 + data_i, 4
-        cell_set = [worksheet.cell(row=row_i, column=col_i + x) for x in range(4)]
-        out_folder = res_path / data_tag / 'output' / data_path.name / f'epoch_{epoch_num:05}'
-        worksheet.cell(row=row_i, column=2).value = str(out_folder)
-        
-        # Skip or not
-        flag_all_filled = False
-        for cell in cell_set:
-            flag_all_filled = flag_all_filled and cell.value is not None
-        if params['clear'] and not flag_all_filled:
-            for cell in cell_set:
-                cell.value = None
-        if not params['recal'] and flag_all_filled:
-            continue
-        
-        # Load disparity list
-        disp_maps = []
-        for seq_idx, frm_idx in gts_idx:
-            disp_file = out_folder / f'scene_{seq_idx:04}' / 'disp' / f'disp_{frm_idx}.png'
-            disp_maps.append(plb.imload(disp_file, scale=1e2))
-            pass
-        
-        # Evaluate numbers
-        evaluate(disp_gts, disp_maps, mask_mats, cell_set)
-        
-        # Draw diff map
-        # diff_map = draw_diff_viz(depth_gt * depth_scale, depth_target * depth_scale, mask_gt)
-        # plb.imsave(depth_target_path.parent / f'{exp}_diff.png', diff_map)
-        
-    pass
-
-
+# def draw_diff_viz(disp_gt, disp_map, mask):
+#     diff = (disp_gt - disp_map)
+#     step_err = torch.ones_like(diff)
+#     step_err[torch.abs(diff) > 1.0] = 2.0
+#     step_err[torch.abs(diff) > 2.0] = 3.0
+#     step_err[torch.abs(diff) > 5.0] = 4.0
+#     step_vis = plb.VisualFactory.err_visual(step_err, mask, max_val=4.0, color_map=cv2.COLORMAP_WINTER)
+#     step_vis = cv2.cvtColor(plb.t2a(step_vis), cv2.COLOR_BGR2RGB)
+#     return step_vis
+#
+#
 # def draw_depth_viz(calib_file, json_file, depth_list, mask_map):
 #     if len(depth_list) == 0:
 #         return
-
+#
 #     config = ConfigParser()
 #     config.read(str(calib_file), encoding='utf-8')
 #     calib_para = config['Calibration']
@@ -165,7 +198,7 @@ def process_scene(worksheet, params):
 #         vis.clear_geometries()
 #     ctr = vis.get_view_control()
 #     param = o3d.io.read_pinhole_camera_parameters(str(json_file))
-
+#
 #     for depth_map, out_path in depth_list:
 #         # Create mesh
 #         depth_viz = plb.DepthMapVisual(depth_map, (fx + fy) / 2.0, mask_map)
@@ -173,7 +206,7 @@ def process_scene(worksheet, params):
 #         xyz_set = xyz_set[mask_map.reshape(-1) == 1.0]
 #         np.savetxt(str(out_path.parent / f'{out_path.stem}.asc'), xyz_set,
 #                    fmt='%.2f', delimiter=',', newline='\n', encoding='utf-8')
-
+#
 #         pcd = o3d.geometry.PointCloud()
 #         pcd.points = o3d.utility.Vector3dVector(xyz_set)
 #         pcd.estimate_normals(
@@ -182,22 +215,22 @@ def process_scene(worksheet, params):
 #         pcd.colors = o3d.utility.Vector3dVector(np.ones_like(xyz_set) * 0.5)
 #         vis.add_geometry(pcd)
 #         ctr.convert_from_pinhole_camera_parameters(param)
-
+#
 #         vis.poll_events()
 #         vis.update_renderer()
 #         time.sleep(0.01)
-
+#
 #         # vis.run()
 #         # vis.get_render_option().save_to_json(str(json_file))
-
+#
 #         image = vis.capture_screen_float_buffer()
 #         image = np.asarray(image).copy()
 #         plb.imsave(out_path, image)
-
+#
 #         # Write result
 #         vis.clear_geometries()
 #         print(out_path.parent.name, out_path.name)
-
+#
 #     return
 
 
@@ -240,28 +273,52 @@ def process_scene(worksheet, params):
 #     pass
 
 
+def copy_mad_to_path(src_path, dst_path):
+    # Load csv file
+    csv_name = list(src_path.glob('*.csv'))[0]
+    loaded_info = []
+    with open(str(csv_name), 'r', encoding='utf-8') as file:
+        while True:
+            res = file.readline()
+            if res is None:
+                break
+            img_path = res.split(',')[0]
+            scene_name = re.search('scene_\d+', img_path).group()
+            frm_num = int(re.search('img_\d+', img_path).group().split('_')[1])
+            loaded_info.append([scene_name, frm_num])
+
+    # Get exp_tag
+    exp_tags = [x.name for x in src_path.glob('*') if x.is_dir()]
+    for exp_tag in exp_tags:
+        for disparity_i, scene_name, frm_num in enumerate(loaded_info):
+            # src_dispairty_file
+            src_disp_file = src_path.joinpath(exp_tag,
+                                              'disparities',
+                                              f'disparity_{disparity_i}.png')
+            # dst_disparity_file
+            dst_disp_file = dst_path.joinpath(exp_tag,
+                                              'output',
+                                              csv_name.stem,
+                                              'epoch_00001',
+                                              scene_name,
+                                              'disp',
+                                              f'disp_{frm_num}.png')
+            dst_disp_file.parent.mkdir(exists_ok=True, parents=True)
+            shutil.copy(str(src_disp_file), str(dst_disp_file))
+
+
 def main():
-    # Parameters
-    params = {
-        'recal': False,
-        'clear': True,
-        'workbook': '/media/qiao/Videos/SLDataSet/OANet/result.xlsx',
-        # 'txt_name': '/media/qiao/Videos/SLDataSet/OANet/ForLatex.txt'
-    }
-    target_sheet_names = None
+    copy_mad_to_path(
+        src_path=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData-out-cmp'),
+        dst_path=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData-out'),
+    )
 
-    # Load workbook and process sheets
-    workbook = openpyxl.load_workbook(str(params['workbook']))
-
-    if target_sheet_names is None:
-        target_sheet_names = workbook.get_sheet_names()
-    for scene_name in target_sheet_names:
-        # print(scene_name)
-        process_scene(workbook[scene_name], params)
-
-    # export_text_to_file(workbook, params)
-
-    workbook.save(str(params['workbook']))
+    app = Evaluator(
+        workbook='/media/qiao/Videos/SLDataSet/OANet/result.xlsx',
+        flush_flag=True,
+    )
+    app.process_dataset('NonRigidReal')
+    app.sum_average('NonRigidReal')
 
 
 # def test():
@@ -371,21 +428,19 @@ def main():
 
 
 # def clean_asc():
-    main_folder = Path(r'C:\Users\qiao\Desktop\CVPR2023_Sub\results')
-    asc_files = [x for x in main_folder.glob('*.asc')]
-    for asc_file in asc_files:
-        try:
-            xyz_set = np.loadtxt(str(asc_file), delimiter=',', encoding='utf-8')
-        except ValueError as e:
-            xyz_set = np.loadtxt(str(asc_file), encoding='utf-8')
-        xyz_set = xyz_set[xyz_set.sum(axis=1) > 1.0]
-        np.savetxt(str(asc_file.parent / f'{asc_file.stem}.xyz'), xyz_set,
-                   fmt='%.2f', delimiter=' ', newline='\n', encoding='utf-8')
-
+#     main_folder = Path(r'C:\Users\qiao\Desktop\CVPR2023_Sub\results')
+#     asc_files = [x for x in main_folder.glob('*.asc')]
+#     for asc_file in asc_files:
+#         try:
+#             xyz_set = np.loadtxt(str(asc_file), delimiter=',', encoding='utf-8')
+#         except ValueError as e:
+#             xyz_set = np.loadtxt(str(asc_file), encoding='utf-8')
+#         xyz_set = xyz_set[xyz_set.sum(axis=1) > 1.0]
+#         np.savetxt(str(asc_file.parent / f'{asc_file.stem}.xyz'), xyz_set,
+#                    fmt='%.2f', delimiter=' ', newline='\n', encoding='utf-8')
 
 
 if __name__ == '__main__':
-    # test()
     main()
     # main_sup()
     # draw_gifs()
