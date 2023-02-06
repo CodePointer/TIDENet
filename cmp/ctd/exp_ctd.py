@@ -210,12 +210,13 @@ class ExpCtdWorker(Worker):
         out_dir.mkdir(parents=True, exist_ok=True)
 
         # Disparity
-        for n in range(self.args.batch_num):
+        batch_num = data['idx'].shape[0]
+        for n in range(batch_num):
             data_idx = int(data['idx'][n].item())
             seq_folder, frm_start = dataset.samples[data_idx]
             seq_out_dir = out_dir / seq_folder.name
-            disp_ref = net_out[0][0]
-            plb.imsave(seq_out_dir / 'disp' / f'disp_{frm_start}.png', disp_ref,
+            disp_res = net_out[0][0]
+            plb.imsave(seq_out_dir / 'disp' / f'disp_{frm_start}.png', disp_res[n],
                        scale=1e2, img_type=np.uint16, mkdir=True)
         pass
 

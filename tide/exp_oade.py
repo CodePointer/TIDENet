@@ -56,6 +56,7 @@ class ExpOADEWorker(ExpTIDEWorker):
             dataset_tag=train_folder.name,
             data_folder=train_folder,
             clip_len=self.args.clip_len,
+            frm_first=self.args.frm_first,
             frm_step=1,
             clip_jump=0,
             blur=False,
@@ -124,7 +125,7 @@ class ExpOADEWorker(ExpTIDEWorker):
             data['center'][f] = data['center'][f].to(self.device)
 
         # 3. mpf part
-        if data['frm_start'].item() == 0:
+        if data['frm_start'].item() == self.args.frm_first:
             self.mpf_distribution = None
         data['mpf'], self.mpf_distribution = self.mpf_estimator.run(data['center'], self.mpf_distribution)
 
@@ -142,7 +143,7 @@ class ExpOADEWorker(ExpTIDEWorker):
         # First frame
         for frm_idx in range(self.args.clip_len):
             with torch.no_grad():
-                if frm_start == 0 and frm_idx == 0:
+                if frm_start == self.args.frm_first and frm_idx == 0:
                     disp_lst = torch.ones_like(data['img'][0][:, :1, :, :]) * 200.0
                     self.last_frm['net_h'] = self.networks['TIDE_NtH'](img=data['img'][frm_idx])
                     self.last_frm['fmap_pat'] = self.networks['TIDE_Ft'](img=data['pat'])
@@ -213,7 +214,7 @@ class ExpOADEWorker(ExpTIDEWorker):
             if not torch.isnan(dp_pf_loss):
                 total_loss += dp_pf_loss
 
-            alpha_ph = 0.0  # TODO
+            alpha_ph = 0.1  # TODO
             dp_ph_loss = torch.zeros(1).to(self.device)
             mask_set = self.loss_funcs['dp-pf'].cal_mask_from_filter(data['mpf'], xp_weight, rad=3)
             self.for_viz['mask_set'] = mask_set

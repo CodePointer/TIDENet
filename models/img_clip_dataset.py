@@ -52,7 +52,7 @@ def augment_images(imgs, rng, max_blur=2.5, max_noise=10.0, max_sp_noise=0.001):
 
 class ImgClipDataset(BaseDataset):
     """Load image from folders and split to sub-sections."""
-    def __init__(self, dataset_tag, data_folder, clip_len,
+    def __init__(self, dataset_tag, data_folder, clip_len, frm_first=0,
                  frm_step=1, clip_jump=0, blur=False, aug_flag=False):
         super(ImgClipDataset, self).__init__(dataset_tag)
 
@@ -61,16 +61,17 @@ class ImgClipDataset(BaseDataset):
         config.read(str(data_folder / 'config.ini'), encoding='utf-8')
 
         self.data_folder = data_folder
+        self.seq_folders = sorted(list(data_folder.glob('scene_*')))
         self.reverse_flag = int(config['Data']['reverse'])
         self.start_frm = None
         if self.reverse_flag:
             self.start_frm = plb.str2tuple(config['Data']['start_frm'], int)
         self.total_sequence = int(config['Data']['total_sequence'])
-        self.frm_len = int(config['Data']['frm_len'])
+        self.frm_len = plb.str2tuple(config['Data']['frm_len'], int)
+        if len(self.frm_len) == 1:
+            self.frm_len = self.frm_len * len(self.seq_folders)
         self.imsize = plb.str2tuple(config['Data']['img_size'], int)
         self.imsize = (self.imsize[1], self.imsize[0])  # [hei, wid]
-
-        self.seq_folders = sorted(list(data_folder.glob('scene_*')))
 
         self.clip_len = clip_len
         self.frm_step = frm_step
@@ -97,8 +98,8 @@ class ImgClipDataset(BaseDataset):
         for i, seq_folder in enumerate(self.seq_folders):
             if i >= 2 ** 11:
                 break
-            for frm_start in range(0, self.frm_len, frm_jump):
-                if frm_start + frm_step * clip_len > self.frm_len:
+            for frm_start in range(frm_first, self.frm_len[i], frm_jump):
+                if frm_start + frm_step * clip_len > self.frm_len[i]:
                     continue
                 self.samples.append((seq_folder, frm_start))
 

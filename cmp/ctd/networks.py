@@ -328,12 +328,13 @@ class DispEdgeDecoders(TimedModule):
         ]
         self.disp_decoder = DispNetS(*args, output_facs=output_facs, **kwargs)
 
-        output_facs = [OutputLayerFactory(type='linear') for s in range(4)]
-        self.edge_decoder = DispNetShallow(*args, output_facs=output_facs, **kwargs)
+        # output_facs = [OutputLayerFactory(type='linear') for s in range(4)]
+        # self.edge_decoder = DispNetShallow(*args, output_facs=output_facs, **kwargs)
 
     def tforward(self, x):
         disp = self.disp_decoder(x)
-        edge = self.edge_decoder(x)
+        # edge = self.edge_decoder(x)
+        edge = None
         return disp, edge
 
 

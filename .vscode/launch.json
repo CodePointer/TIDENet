@@ -6,7 +6,7 @@
   "configurations": [
 
     {
-      "name": "Python: main.py",
+      "name": "run",
       "type": "python",
       "request": "launch",
       "program": "~/anaconda3/lib/python3.6/site-packages/torch/distributed/launch.py",
@@ -15,7 +15,7 @@
         "--nproc_per_node=1",
         "main.py",
         "--config",
-        "./cmp/asn/asn_train.ini",
+        "./cmp/ctd/ctd_eval.ini",
       ],
       "env": {"CUDA_VISIBLE_DEVICES": "0"}
     }

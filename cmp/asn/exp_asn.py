@@ -206,7 +206,8 @@ class ExpASNWorker(Worker):
         out_dir.mkdir(parents=True, exist_ok=True)
 
         # Disparity
-        for n in range(self.args.batch_num):
+        batch_num = data['idx'].shape[0]
+        for n in range(batch_num):
             data_idx = int(data['idx'][n].item())
             seq_folder, frm_start = dataset.samples[data_idx]
             seq_out_dir = out_dir / seq_folder.name

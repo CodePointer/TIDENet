@@ -69,6 +69,10 @@ def get_args():
                         type=str)
 
     # Parameters for training
+    parser.add_argument('--frm_first', 
+                        help='First frame for online learning. Used for ablation study.',
+                        default=0,
+                        type=int)
     parser.add_argument('--clip_len',
                         help='Clip length for training.',
                         default=8,
