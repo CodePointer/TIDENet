@@ -100,6 +100,8 @@ class ExpOADEWorker(ExpTIDEWorker):
         elif self.args.loss_type == 'ph':
             self.loss_funcs['dp-ph'] = self.warp_loss
         elif self.args.loss_type == 'pf':
+            self.loss_funcs['dp-pf'] = self.pf_dist
+        elif self.args.loss_type == 'phpf':
             self.loss_funcs['dp-ph'] = self.warp_loss
             self.loss_funcs['dp-pf'] = self.pf_dist
         else:
@@ -201,7 +203,7 @@ class ExpOADEWorker(ExpTIDEWorker):
                 )
             total_loss += dp_ph_loss
 
-        elif self.args.loss_type == 'pf':
+        elif self.args.loss_type in ['pf', 'phpf']:
             dp_pf_loss, xp_weight, pt_cam_back, new_distribution, pt_cam_edge = self.loss_record(
                 'dp-pf', disp_list=disps, mpf_dots=data['mpf'],
                 distribution_dots=self.mpf_distribution, return_val_only=False
@@ -214,20 +216,21 @@ class ExpOADEWorker(ExpTIDEWorker):
             if not torch.isnan(dp_pf_loss):
                 total_loss += dp_pf_loss
 
-            alpha_ph = 0.1  # TODO
-            dp_ph_loss = torch.zeros(1).to(self.device)
-            mask_set = self.loss_funcs['dp-pf'].cal_mask_from_filter(data['mpf'], xp_weight, rad=3)
-            self.for_viz['mask_set'] = mask_set
-            for f in range(0, self.args.clip_len):
-                disp = disps[f]
-                mask = mask_set[f]  # * data['img_std'][f]
-                loss_val, img_wrp, img_err, _, _ = self.loss_record(
-                    'dp-ph', img_dst=data['img'][f][:, 1:], img_src=data['pat'][:, 1:],
-                    disp_mat=disp, mask=mask, return_val_only=False
-                )
-                dp_ph_loss += loss_val
-            if not torch.isnan(dp_ph_loss):
-                total_loss += alpha_ph * dp_ph_loss
+            if self.args.loss_type == 'phpf':
+                alpha_ph = 0.1
+                dp_ph_loss = torch.zeros(1).to(self.device)
+                mask_set = self.loss_funcs['dp-pf'].cal_mask_from_filter(data['mpf'], xp_weight, rad=3)
+                self.for_viz['mask_set'] = mask_set
+                for f in range(0, self.args.clip_len):
+                    disp = disps[f]
+                    mask = mask_set[f]  # * data['img_std'][f]
+                    loss_val, img_wrp, img_err, _, _ = self.loss_record(
+                        'dp-ph', img_dst=data['img'][f][:, 1:], img_src=data['pat'][:, 1:],
+                        disp_mat=disp, mask=mask, return_val_only=False
+                    )
+                    dp_ph_loss += loss_val
+                if not torch.isnan(dp_ph_loss):
+                    total_loss += alpha_ph * dp_ph_loss
 
         self.avg_meters['Total'].update(total_loss, self.N)
         return total_loss

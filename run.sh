@@ -4,7 +4,7 @@ TRAIN_FOLDER="31_VirtualData"
 OUT_FOLDER="31_VirtualData-out"
 MODEL_FOLDER="21_VirtualData-out/model"
 
-for FRM_FIRST in 32 64 96 128 192
+for LOSS_TYPE in pf ph phpf
 do
     for (( i=5; i<=8; i++ ))
     do
@@ -13,8 +13,8 @@ do
             --train_dir ${DATA_DIR}/${TRAIN_FOLDER} \
             --out_dir ${DATA_DIR}/${OUT_FOLDER} \
             --model_dir ${DATA_DIR}/${MODEL_FOLDER} \
-            --frm_first ${FRM_FIRST} \
-            --run_tag frm${FRM_FIRST}_exp$i
+            --loss_type ${LOSS_TYPE} \
+            --run_tag ${LOSS_TYPE}_exp$i
     done
 done
 

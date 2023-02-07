@@ -65,7 +65,7 @@ def get_args():
     parser.add_argument('--loss_type',
                         help='Loss type used for training.',
                         default='pf',
-                        choices=['su', 'ph', 'pf'],
+                        choices=['su', 'ph', 'pf', 'phpf'],
                         type=str)
 
     # Parameters for training

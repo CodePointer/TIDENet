@@ -29,6 +29,7 @@ import pointerlib as plb
 class Evaluator:
     def __init__(self, workbook, flush_flag):
         self.workbook = openpyxl.load_workbook(str(workbook))
+        self.workbook_path = workbook
         self.flush_flag = flush_flag
 
     # def run(self, sheet_names=None):
@@ -79,8 +80,9 @@ class Evaluator:
             work_sheet.cell(row=row_idx, column=3).value = f'{res[0] * 100.0:.2f}'
             work_sheet.cell(row=row_idx, column=4).value = f'{res[1] * 100.0:.2f}'
             work_sheet.cell(row=row_idx, column=5).value = f'{res[2] * 100.0:.2f}'
-            work_sheet.cell(row=row_idx, column=5).value = f'{res[3]:.3f}'
+            work_sheet.cell(row=row_idx, column=6).value = f'{res[3]:.3f}'
 
+        self.workbook.save(self.workbook_path)
         pass
 
     def _evaluate_exp_outs(self, data_path, res_path, frm_len):
@@ -95,7 +97,7 @@ class Evaluator:
             res_scene_folder = res_path / f'scene_{seq_idx:04}'
             disp_res_folder = res_scene_folder / 'disp'
 
-            for frm_idx in range(frm_len):
+            for frm_idx in range(frm_len[seq_idx]):
                 disp_gt_path = disp_gt_folder / f'disp_{frm_idx}.png'
                 disp_res_path = disp_res_folder / f'disp_{frm_idx}.png'
                 if disp_gt_path.exists():
@@ -120,16 +122,16 @@ class Evaluator:
         dst_work_sheet = self.workbook[f'{scene_name}-Sum']
 
         # Get all exp_tags & values
-        start_row = 2
+        start_row = 5
         raw_results = []
         for row_idx in range(start_row, src_work_sheet.max_row + 1):
             raw_results.append([
                 src_work_sheet.cell(row_idx, 1).value,
                 [
-                    src_work_sheet.cell(row_idx, 3),
-                    src_work_sheet.cell(row_idx, 4),
-                    src_work_sheet.cell(row_idx, 5),
-                    src_work_sheet.cell(row_idx, 6),
+                    float(src_work_sheet.cell(row_idx, 3).value),
+                    float(src_work_sheet.cell(row_idx, 4).value),
+                    float(src_work_sheet.cell(row_idx, 5).value),
+                    float(src_work_sheet.cell(row_idx, 6).value),
                 ]
             ])
 
@@ -145,13 +147,16 @@ class Evaluator:
 
         # Put into new sheet
         for i, exp_tag in enumerate(grouped_results):
-            dst_work_sheet.cell(start_row + i, 1).value = exp_tag
+            dst_work_sheet.cell(2 + i, 1).value = exp_tag
             exp_res = np.stack(grouped_results[exp_tag], axis=0)
             exp_avg = np.average(exp_res, axis=0)
-            dst_work_sheet.cell(start_row + i, 2).value = f'{exp_avg[0] * 100.0:.2f}'
-            dst_work_sheet.cell(start_row + i, 3).value = f'{exp_avg[1] * 100.0:.2f}'
-            dst_work_sheet.cell(start_row + i, 4).value = f'{exp_avg[2] * 100.0:.2f}'
-            dst_work_sheet.cell(start_row + i, 5).value = f'{exp_avg[3]:.3f}'
+            dst_work_sheet.cell(2 + i, 2).value = f'{exp_avg[0]:.2f}'
+            dst_work_sheet.cell(2 + i, 3).value = f'{exp_avg[1]:.2f}'
+            dst_work_sheet.cell(2 + i, 4).value = f'{exp_avg[2]:.2f}'
+            dst_work_sheet.cell(2 + i, 5).value = f'{exp_avg[3]:.3f}'
+
+        self.workbook.save(self.workbook_path)
+        pass
 
 
 # def draw_diff_viz(disp_gt, disp_map, mask):
@@ -280,7 +285,7 @@ def copy_mad_to_path(src_path, dst_path):
     with open(str(csv_name), 'r', encoding='utf-8') as file:
         while True:
             res = file.readline()
-            if res is None:
+            if res is None or res == '':
                 break
             img_path = res.split(',')[0]
             scene_name = re.search('scene_\d+', img_path).group()
@@ -290,7 +295,7 @@ def copy_mad_to_path(src_path, dst_path):
     # Get exp_tag
     exp_tags = [x.name for x in src_path.glob('*') if x.is_dir()]
     for exp_tag in exp_tags:
-        for disparity_i, scene_name, frm_num in enumerate(loaded_info):
+        for disparity_i, (scene_name, frm_num) in tqdm(enumerate(loaded_info), desc=exp_tag):
             # src_dispairty_file
             src_disp_file = src_path.joinpath(exp_tag,
                                               'disparities',
@@ -303,19 +308,19 @@ def copy_mad_to_path(src_path, dst_path):
                                               scene_name,
                                               'disp',
                                               f'disp_{frm_num}.png')
-            dst_disp_file.parent.mkdir(exists_ok=True, parents=True)
+            dst_disp_file.parent.mkdir(exist_ok=True, parents=True)
             shutil.copy(str(src_disp_file), str(dst_disp_file))
 
 
 def main():
-    copy_mad_to_path(
-        src_path=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData-out-cmp'),
-        dst_path=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData-out'),
-    )
+    # copy_mad_to_path(
+    #     src_path=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData-out-mad'),
+    #     dst_path=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData-out'),
+    # )
 
     app = Evaluator(
         workbook='/media/qiao/Videos/SLDataSet/OANet/result.xlsx',
-        flush_flag=True,
+        flush_flag=False,
     )
     app.process_dataset('NonRigidReal')
     app.sum_average('NonRigidReal')

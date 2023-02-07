@@ -4,7 +4,13 @@
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
-
+    {
+      "name": "Eval",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/tools/evaluate_result.py",
+      "console": "integratedTerminal"
+    },
     {
       "name": "run",
       "type": "python",
@@ -17,7 +23,9 @@
         "--config",
         "./cmp/ctd/ctd_eval.ini",
       ],
-      "env": {"CUDA_VISIBLE_DEVICES": "0"}
+      "env": {
+        "CUDA_VISIBLE_DEVICES": "0"
+      }
     }
   ]
 }
