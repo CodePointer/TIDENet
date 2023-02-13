@@ -39,7 +39,7 @@ class Evaluator:
     #     for scene_name in sheet_names:
     #         self.process_dataset(scene_name)
 
-    def process_dataset(self, scene_name):
+    def process_dataset(self, scene_name, mask_flag=False):
         work_sheet = self.workbook[scene_name]
         data_path = Path(work_sheet['B1'].value)
         out_path = Path(work_sheet['B2'].value)
@@ -56,13 +56,19 @@ class Evaluator:
         # Get all exp_tags
         start_row = 5
         exp_set = sorted([x for x in out_path.glob('*') if x.is_dir()])
+        cmp_sets = []
         exp_num = len(exp_set)
         for i, exp_path in enumerate(exp_set):
             work_sheet.cell(row=start_row + i, column=1).value = exp_path.name
-            work_sheet.cell(row=start_row + i, column=2).value = str(exp_path)
-
+            sub_folders = [x for x in (exp_path / 'output' / data_path.name).glob('*') if x.is_dir()]
+            res_path = sorted(sub_folders)[-1]
+            work_sheet.cell(row=start_row + i, column=2).value = str(res_path)
+            cmp_sets.append(self._build_up_cmp_set(data_path, res_path, frm_len, mask_flag))
+            
         # Evaluate: column = 3,4,5,6
-        for i in tqdm(range(exp_num), desc=scene_name):
+        prog_bar = tqdm(total=sum([len(x) for x in cmp_sets]))
+        for i in range(exp_num):
+            prog_bar.set_description(f'{scene_name}[{exp_set[i].name}]')
             row_idx = start_row + i
 
             # Check if skip or not
@@ -71,12 +77,11 @@ class Evaluator:
                 cell_res = work_sheet.cell(row=row_idx, column=col_idx)
                 flag_all_filled = flag_all_filled and cell_res.value is not None
             if not self.flush_flag and flag_all_filled:
+                prog_bar.update(len(cmp_sets[i]))
                 continue
 
             # Evaluate result and fill results
-            sub_folders = [x for x in (exp_set[i] / 'output' / data_path.name).glob('*') if x.is_dir()]
-            res_path = sorted(sub_folders)[-1]
-            res = self._evaluate_exp_outs(data_path, res_path, frm_len)
+            res = self._evaluate_exp_outs(cmp_sets[i], prog_bar)
             work_sheet.cell(row=row_idx, column=3).value = f'{res[0] * 100.0:.2f}'
             work_sheet.cell(row=row_idx, column=4).value = f'{res[1] * 100.0:.2f}'
             work_sheet.cell(row=row_idx, column=5).value = f'{res[2] * 100.0:.2f}'
@@ -85,9 +90,9 @@ class Evaluator:
         self.workbook.save(self.workbook_path)
         pass
 
-    def _evaluate_exp_outs(self, data_path, res_path, frm_len):
-        res_array = []
-
+    def _build_up_cmp_set(self, data_path, res_path, frm_len, mask_flag=False):
+        cmp_set = []
+        
         seq_num = len([x for x in res_path.glob('scene_*') if x.is_dir()])
         for seq_idx in range(seq_num):
             gt_scene_folder = data_path / f'scene_{seq_idx:04}'
@@ -100,18 +105,35 @@ class Evaluator:
             for frm_idx in range(frm_len[seq_idx]):
                 disp_gt_path = disp_gt_folder / f'disp_{frm_idx}.png'
                 disp_res_path = disp_res_folder / f'disp_{frm_idx}.png'
-                if disp_gt_path.exists():
-                    disp_gt = plb.imload(disp_gt_path, scale=1e2)
-                    disp_res = plb.imload(disp_res_path, scale=1e2)
-                    mask = (disp_gt > 0.0).float()  # TODO
-                    diff = (disp_gt - disp_res)
-                    diff_vec = diff[mask > 0.0]
-                    total_num = diff_vec.shape[0]
-                    err10_num = (torch.abs(diff_vec) > 1.0).float().sum() / total_num
-                    err20_num = (torch.abs(diff_vec) > 2.0).float().sum() / total_num
-                    err50_num = (torch.abs(diff_vec) > 5.0).float().sum() / total_num
-                    avg = torch.abs(diff_vec).sum() / total_num
-                    res_array.append(np.array([err10_num, err20_num, err50_num, avg]))
+                mask_path = gt_scene_folder / 'mask' / f'mask_{frm_idx}.png' if mask_flag else None
+
+                if disp_gt_path.exists() and disp_res_path.exists():
+                    cmp_set.append(tuple([disp_gt_path, disp_res_path, mask_path]))
+
+        return cmp_set
+
+    def _evaluate_exp_outs(self, cmp_set, prog_bar=None):
+        res_array = []
+
+        for disp_gt_path, disp_res_path, mask_path in cmp_set:
+
+            disp_gt = plb.imload(disp_gt_path, scale=1e2)
+            disp_res = plb.imload(disp_res_path, scale=1e2)
+            mask = (disp_gt > 0.0).float()  # TODO
+            if mask_path is not None:
+                mask = plb.imload(mask_path)
+
+            diff = (disp_gt - disp_res)
+            diff_vec = diff[mask > 0.0]
+            total_num = diff_vec.shape[0]
+            err10_num = (torch.abs(diff_vec) > 1.0).float().sum() / total_num
+            err20_num = (torch.abs(diff_vec) > 2.0).float().sum() / total_num
+            err50_num = (torch.abs(diff_vec) > 5.0).float().sum() / total_num
+            avg = torch.abs(diff_vec).sum() / total_num
+            res_array.append(np.array([err10_num, err20_num, err50_num, avg]))
+
+            if prog_bar is not None:
+                prog_bar.update(1)
 
         res_array = np.stack(res_array, axis=0)
         res_avg = np.average(res_array, axis=0)
@@ -320,10 +342,12 @@ def main():
 
     app = Evaluator(
         workbook='/media/qiao/Videos/SLDataSet/OANet/result.xlsx',
-        flush_flag=False,
+        flush_flag=True
     )
-    app.process_dataset('NonRigidReal')
-    app.sum_average('NonRigidReal')
+    # app.process_dataset('NonRigidReal', mask_flag=False)
+    # app.sum_average('NonRigidReal')
+    app.process_dataset('NonRigidVirtual', mask_flag=True)
+    app.sum_average('NonRigidVirtual')
 
 
 # def test():

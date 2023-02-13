@@ -34,6 +34,7 @@ class ExpOADEWorker(ExpTIDEWorker):
         # self.last_frm = {}
         # self.for_viz = {'frm_max': 128}
 
+        self.flush_model = False
         self.pat_info = None
         self.mpf_distribution = None
 
@@ -50,6 +51,12 @@ class ExpOADEWorker(ExpTIDEWorker):
         """
         assert self.args.exp_type == 'online', f'exp_type=online is needed for oade.'
         assert self.args.train_dir != '', f'train_dir is required for exp_type=online.'
+
+        if self.args.frm_first >= 0:
+            self.flush_model = True
+        else:
+            self.flush_model = False
+            self.args.frm_first = 0
 
         train_folder = Path(self.args.train_dir)
         train_paras = dict(
@@ -141,6 +148,10 @@ class ExpOADEWorker(ExpTIDEWorker):
         disp_outs = []
         frm_start = data['frm_start'].item()
         self.for_viz['frm_start'] = int(frm_start)
+
+        # Flush model or not
+        if self.flush_model and frm_start == self.args.frm_first:
+            self._net_load(self.args.epoch_start - 1)
 
         # First frame
         for frm_idx in range(self.args.clip_len):
