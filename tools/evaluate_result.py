@@ -17,12 +17,13 @@ import numpy as np
 import cv2
 import torch
 import openpyxl
+from openpyxl.styles import Alignment
 from tqdm import tqdm
 import re
 import shutil
 # import open3d as o3d
 
-import pointerlib as plb
+import utils.pointerlib as plb
 
 
 # - Coding Part - #
@@ -86,6 +87,11 @@ class Evaluator:
             work_sheet.cell(row=row_idx, column=4).value = f'{res[1] * 100.0:.2f}'
             work_sheet.cell(row=row_idx, column=5).value = f'{res[2] * 100.0:.2f}'
             work_sheet.cell(row=row_idx, column=6).value = f'{res[3]:.3f}'
+
+            # Style
+            work_sheet.row_dimensions[row_idx].height = 15
+            for col_idx in range(1, 7):
+                work_sheet.cell(row_idx, col_idx).alignment = Alignment('center', 'center')
 
         self.workbook.save(self.workbook_path)
         pass
@@ -336,8 +342,8 @@ def copy_mad_to_path(src_path, dst_path):
 
 def main():
     # copy_mad_to_path(
-    #     src_path=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData-out-mad'),
-    #     dst_path=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData-out'),
+    #     src_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualData-out-mad2'),
+    #     dst_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualData-out-mad'),
     # )
 
     app = Evaluator(
@@ -346,8 +352,12 @@ def main():
     )
     # app.process_dataset('NonRigidReal', mask_flag=False)
     # app.sum_average('NonRigidReal')
-    app.process_dataset('NonRigidVirtual', mask_flag=True)
-    app.sum_average('NonRigidVirtual')
+    # app.process_dataset('NonRigidVirtual', mask_flag=True)
+    # app.sum_average('NonRigidVirtual')
+    app.process_dataset('NonRigidRealAbl', mask_flag=False)
+    app.sum_average('NonRigidRealAbl')
+    # app.process_dataset('NonRigidVirtualMad', mask_flag=True)
+    # app.sum_average('NonRigidVirtualMad')
 
 
 # def test():

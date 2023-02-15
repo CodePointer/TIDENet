@@ -1,7 +1,7 @@
 CONFIG_FILE="./params/oade_online.ini"
 DATA_DIR="/media/qiao/Videos/SLDataSet/OANet"
 TRAIN_FOLDER="52_RealData"
-OUT_FOLDER="52_RealData-out-abs"
+OUT_FOLDER="52_RealData-out-abl"
 # TRAIN_FOLDER="31_VirtualData"
 # OUT_FOLDER="31_VirtualData-out"
 MODEL_FOLDER="21_VirtualData-out/model"
@@ -15,6 +15,7 @@ do
             --train_dir ${DATA_DIR}/${TRAIN_FOLDER} \
             --out_dir ${DATA_DIR}/${OUT_FOLDER} \
             --model_dir ${DATA_DIR}/${MODEL_FOLDER} \
+            --loss_type phpfwom \
             --frm_first ${FRM_FIRST} \
             --run_tag frm${FRM_FIRST}_exp$i
     done

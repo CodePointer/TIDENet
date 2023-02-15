@@ -207,7 +207,7 @@ class PFDistLoss(BaseLoss):
 
         return mu_post, sig2_post
 
-    def forward(self, disp_list, mpf_dots, distribution_dots):
+    def forward(self, disp_list, mpf_dots, distribution_dots, weight_flag=True):
         """
             disp_list: [1, 1, H, W] * frm_num
             mpf_dots: [T, 2, Kc]  # ..., [xc^t-2, yc], [xc^t-1, yc], [xc^t, yc]
@@ -311,7 +311,10 @@ class PFDistLoss(BaseLoss):
 
         pass
         # 8. Cal err
-        err_map = self.crit(xp_clip, xp_gt.detach().repeat(8, 1, 1)) * xp_weight  # [T, 1, Kc]
+        if not weight_flag:
+            err_map = self.crit(xp_clip, xp_gt.detach().repeat(8, 1, 1))  # [T, 1, Kc]
+        else:
+            err_map = self.crit(xp_clip, xp_gt.detach().repeat(8, 1, 1)) * xp_weight  # [T, 1, Kc]
         mask_err = mask_clip
         val = (err_map * mask_err).sum() / (mask_err.sum() + 1e-8)
 

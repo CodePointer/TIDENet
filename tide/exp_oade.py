@@ -106,9 +106,9 @@ class ExpOADEWorker(ExpTIDEWorker):
             self.loss_funcs['dp-super'] = self.super_dist
         elif self.args.loss_type == 'ph':
             self.loss_funcs['dp-ph'] = self.warp_loss
-        elif self.args.loss_type == 'pf':
+        elif self.args.loss_type in ['pf', 'pfwom']:
             self.loss_funcs['dp-pf'] = self.pf_dist
-        elif self.args.loss_type == 'phpf':
+        elif self.args.loss_type in ['phpfwm', 'phpfwom']:
             self.loss_funcs['dp-ph'] = self.warp_loss
             self.loss_funcs['dp-pf'] = self.pf_dist
         else:
@@ -214,10 +214,11 @@ class ExpOADEWorker(ExpTIDEWorker):
                 )
             total_loss += dp_ph_loss
 
-        elif self.args.loss_type in ['pf', 'phpf']:
+        elif self.args.loss_type in ['pf', 'pfwom', 'phpfwm', 'phpfwom']:
+            weight_flag = False if self.args.loss_type == 'pfwom' else True
             dp_pf_loss, xp_weight, pt_cam_back, new_distribution, pt_cam_edge = self.loss_record(
                 'dp-pf', disp_list=disps, mpf_dots=data['mpf'],
-                distribution_dots=self.mpf_distribution, return_val_only=False
+                distribution_dots=self.mpf_distribution, weight_flag=weight_flag, return_val_only=False
             )
             self.for_viz['pt_cam_back'] = pt_cam_back
             self.for_viz['xp_weight'] = xp_weight
@@ -227,10 +228,13 @@ class ExpOADEWorker(ExpTIDEWorker):
             if not torch.isnan(dp_pf_loss):
                 total_loss += dp_pf_loss
 
-            if self.args.loss_type == 'phpf':
+            if self.args.loss_type in ['phpfwm', 'phpfwom']:
                 alpha_ph = 0.1
                 dp_ph_loss = torch.zeros(1).to(self.device)
-                mask_set = self.loss_funcs['dp-pf'].cal_mask_from_filter(data['mpf'], xp_weight, rad=3)
+                if self.args.loss_type == 'phpfwm':
+                    mask_set = self.loss_funcs['dp-pf'].cal_mask_from_filter(data['mpf'], xp_weight, rad=3)
+                else:  # phpfwom
+                    mask_set = data['img_std']
                 self.for_viz['mask_set'] = mask_set
                 for f in range(0, self.args.clip_len):
                     disp = disps[f]
