@@ -78,4 +78,4 @@ def main(data_folder):
 
 
 if __name__ == '__main__':
-    main(Path('C:/SLDataSet/TADE/5_RealDataCut'))
+    main(Path('C:/SLDataSet/TADE/31_VirtualDataEval'))

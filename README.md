@@ -2,14 +2,6 @@
 
 The PyTorch implementation of TIDE.
 
-| Data0605 (Ground truth) | Without Adaptation | With Online Adaptation |
-| --- | --- | --- |
-| ![GT](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data0605-GT-disp.gif?raw=true) | ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data0605-tide-eval-disp.gif?raw=true) ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data0605-tide-eval-step_err.gif?raw=true) | ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data0605-tide-on-disp.gif?raw=true) ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data0605-tide-on-step_err.gif?raw=true) |
-
-| Data1118 (Ground truth) | Without Adaptation | With Online Adaptation |
-| --- | --- | --- |
-| ![GT](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data1118-GT-disp.gif?raw=true) | ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data1118-tide-eval-disp.gif?raw=true) ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data1118-tide-eval-step_err.gif?raw=true) | ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data1118-tide-on-disp.gif?raw=true) ![](https://github.com/CodePointer/TIDENet-PictureBed/blob/main/Data1118-tide-on-step_err.gif?raw=true) |
-
 If you find our code useful, please cite:
 
 ```
@@ -37,15 +29,17 @@ pip install -r requirments.txt
 
 Please download the dataset from here:
 
-- [Data0605](https://drive.google.com/file/d/1gQfYVir8dSnWj_CB7pGNOzIrGZURVM27/view?usp=sharing), used in TIDE without online adaptation.
-- [Data1118](https://drive.google.com/file/d/1oPGuVxgHNM2rdzZHdqZg9ZDpul0Mr6IB/view?usp=sharing), used in TIDE with online adaptation. (Calibrated better)
+- [Real-world Rigid Motion](https://drive.google.com/file/d/1gQfYVir8dSnWj_CB7pGNOzIrGZURVM27/view?usp=sharing), used in TIDE with groundtruth.
+- [Real-world Non-rigid Motion](), used in TIDE without groundtruth. Only raw disparity from RealSense sensor is given.
 
 After downloaded the dataset, you can add the directory to the parameters under `params` folder. With the given dataset, you should be able to run the code without any preprocessing. 
+
+### Use Your Own Dataset
 
 You can also use your own dataset. Please follow the follow the similar dataset directory scheme or rewrite the `models/img_clip_dataset.py`. Please refer to the followings for further preprocessing.
 
 
-### About calibration parameters (Optional)
+### Calibration parameters
 
 All the calibrated parameters are stored as:
 
@@ -62,7 +56,7 @@ python tools/draw_mask_center.py
 
 After finished, please copy the generated `pat_info.pt` to the dataset folder.
 
-### Detect dot center (Optional)
+### Detect dot center
 
 The dot center detection process is implemented by OpenCV, blob detection. This preprocessing is provided in script `tools/pattern_compute.py`.
 
@@ -81,7 +75,7 @@ You can also train the network by your self. First, pretrain the initial module:
 python main.py --config ./params/init_train.ini
 ```
 
-Then with the given init module, we pretrain the TIDE network:
+Then with the given init module, pretrain the TIDE network:
 
 ```
 python main.py --config ./params/tide_train.ini
@@ -93,10 +87,4 @@ Evaluate only, without any adaptation:
 
 ```
 python main.py --config ./params/tide_eval.ini
-```
-
-Online learning:
-
-```
-python main.py --config ./params/tide_online.ini
 ```
