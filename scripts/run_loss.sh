@@ -2,15 +2,15 @@ CONFIG_FILE="./params/oade_online.ini"
 DATA_DIR="/media/qiao/Videos/SLDataSet/OANet"
 # TRAIN_FOLDER="52_RealData"
 # OUT_FOLDER="52_RealData-out"
-TRAIN_FOLDER="31_VirtualData"
-OUT_FOLDER="31_VirtualData-out"
+TRAIN_FOLDER="31_VirtualDataEval"
+OUT_FOLDER="31_VirtualDataEval-out"
 MODEL_FOLDER="21_VirtualData-out/model"
 
-for LOSS_TYPE in pfwom  # phpfwm pf ph phpfwom
+for LOSS_TYPE in phpfwom  # phpfwm pf ph phpfwom
 do
-    for (( i=5; i<=8; i++ ))
+    for (( i=1; i<=8; i++ ))
     do
-        CUDA_VISIBLE_DEVICES=1 python -m torch.distributed.launch --nproc_per_node=1 main.py \
+        CUDA_VISIBLE_DEVICES=${1} python -m torch.distributed.launch --nproc_per_node=1 main.py \
             --config ${CONFIG_FILE} \
             --train_dir ${DATA_DIR}/${TRAIN_FOLDER} \
             --out_dir ${DATA_DIR}/${OUT_FOLDER} \

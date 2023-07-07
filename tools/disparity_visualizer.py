@@ -58,14 +58,16 @@ def main():
     #         ('scene_0003', 255)
     #     ],
     #     exp_set=[
-    #         'asn-eval',
-    #         'ctd-eval',
-    #         'mad_exp0',
-    #         'tide-eval',
-    #         'oade-pfwom_exp1',
-    #         'oade-phpfwom_exp1',
-    #         'oade-ph_exp1',
-    #         'oade-pf_exp1',
+    #         'mad-off_exp3',
+    #         'mad-lcn_exp1',
+    #         # 'asn-eval',
+    #         # 'ctd-eval',
+    #         # 'mad_exp0',
+    #         # 'tide-eval',
+    #         # 'oade-pfwom_exp1',
+    #         # 'oade-phpfwom_exp1',
+    #         # 'oade-ph_exp1',
+    #         # 'oade-pf_exp1',
     #         # 'oade-frm0_exp1',
     #         # 'oade-frm32_exp1',
     #         # 'oade-frm64_exp1',
@@ -83,20 +85,42 @@ def main():
         img_set=[
             # ('scene_0000', 143),
             # ('scene_0001', 87),
-            ('scene_0000', 95),
-            # ('scene_0003', 239)
+            # ('scene_0000', 95),
+            # ('scene_0003', 239),
             # ('scene_0002', 159),
-            # ('scene_0003', 495)
+            ('scene_0003', 495),
         ],
         exp_set=[
-            'asn-eval',
-            'ctd-eval',
-            'mad_exp1',
-            'tide-eval',
-            'oade-phpfwom_exp1',
+            'mad-off_exp1',
+            'mad-ssmi_exp1',
+            # 'asn-eval',
+            # 'ctd-eval',
+            # 'mad_exp1',
+            # 'tide-eval',
+            # 'oade-phpfwom_exp1',
         ],
         out_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualData-vis')
     )
+    # copy_visualization_res(
+    #     data_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualDataEval'),
+    #     res_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualDataEval-out'),
+    #     img_set=[
+    #         ('scene_00', 255),
+    #         # ('scene_0001', 87),
+    #         ('scene_04', 255)
+    #         # ('scene_0002', 159),
+    #         # ('scene_0003', 495)
+    #     ],
+    #     exp_set=[
+    #         'asn-eval',
+    #         'ctd-eval',
+    #         'mad-lcn_exp1',
+    #         'mad-off',
+    #         'tide-eval',
+    #         'oade-phpfwom_exp1',
+    #     ],
+    #     out_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualDataEval-vis')
+    # )
 
     pass
 
