@@ -93,6 +93,8 @@ class StopWatch(object):
         return self
 
     def __enter__(self):
+        if self.sync:
+            torch.cuda.synchronize()
         self.start(self.current_name)
         pass
 

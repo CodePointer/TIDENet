@@ -22,7 +22,7 @@ import pointerlib as plb
 
 
 # - Coding Part - #
-def _disp2pcd(disp_file, calib_para, mask_file=None):
+def _disp2pcd(disp_file, pcd_file, calib_para, mask_file=None):
     # disp -> depth
     fb = float(calib_para['focal_len']) * float(calib_para['baseline'])
     disp = plb.imload(disp_file, scale=1e2, flag_tensor=False)
@@ -42,15 +42,13 @@ def _disp2pcd(disp_file, calib_para, mask_file=None):
     xyz_set = xyz_set[xyz_set[:, -1] < 1200.0, :]
 
     # Save to pcd file
-    pcd_name = disp_file.stem.replace('disp_', 'pcd_')
-    pcd_file = disp_file.parent / f'{pcd_name}.xyz'
     np.savetxt(str(pcd_file), xyz_set, fmt='%.2f', delimiter=',',
                newline='\n', encoding='utf-8')
 
     pass
 
 
-def _pcd2vis(pcd_file, calib_para, visible=False):
+def _pcd2vis(pcd_file, vis_file, calib_para, visible=False):
     wid, hei = plb.str2tuple(calib_para['img_size'], item_type=int)
     fx, fy, dx, dy = plb.str2tuple(calib_para['img_intrin'], item_type=float)
     vis = o3d.visualization.Visualizer()
@@ -101,12 +99,10 @@ def _pcd2vis(pcd_file, calib_para, visible=False):
     vis.destroy_window()
 
     # Save to vis file
-    vis_name = pcd_file.stem.replace('pcd_', 'vis_')
-    vis_file = pcd_file.parent / f'{vis_name}.png'
     plb.imsave(vis_file, img)
 
 
-def _draw_step_vis(gt_file, disp_file, mask_file=None):
+def _draw_step_vis(gt_file, disp_file, step_file, mask_file=None):
     disp_gt = plb.imload(gt_file, scale=1e2)
     mask = (disp_gt > 0).float()
     if mask_file is not None:
@@ -123,66 +119,21 @@ def _draw_step_vis(gt_file, disp_file, mask_file=None):
     step_vis = cv2.cvtColor(plb.t2a(step_vis), cv2.COLOR_BGR2RGB)
 
     # Save to step res
-    step_name = disp_file.stem.replace('disp_', 'step_')
-    step_file = disp_file.parent / f'{step_name}.png'
     plb.imsave(step_file, step_vis)
 
 
-def generate_vis_mat(vis_folder):
-    # Load config
-    config = ConfigParser()
-    config.read(str(vis_folder / 'config.ini'), encoding='utf-8')
-    calib_para = config['RectCalib']
-
-    # Folder_set
-    folders = [x for x in vis_folder.glob('*') if x.is_dir()]
-    for folder in folders:
-        disp_sets = list(folder.glob('disp_*.png'))
-        mask_file = folder / 'mask.png'
-        for disp_file in tqdm(disp_sets, desc=folder.name):
-
-            # if not 'disp_oade-phpfwom_exp1' == disp_file.stem:
-            #     continue
-
-            pcd_name = disp_file.stem.replace('disp_', 'pcd_') + '.xyz'
-            pcd_file = folder / pcd_name
-            if not pcd_file.exists():
-                _disp2pcd(disp_file, calib_para, mask_file)
-
-            vis_name = disp_file.stem.replace('disp_', 'vis_') + '.png'
-            vis_file = folder / vis_name
-            if not vis_file.exists():
-                _pcd2vis(pcd_file, calib_para)
-
-            if disp_file.stem != 'disp_gt':
-                gt_file = folder / 'disp_gt.png'
-                step_name = disp_file.stem.replace('disp_', 'step_') + '.png'
-                step_file = folder / step_name
-                if not step_file.exists():
-                    _draw_step_vis(gt_file, disp_file, mask_file)
-
-            pass
-
-        pass
-
-    pass
-
-
-def refill_step_mat(vis_folder):
-    folders = [x for x in vis_folder.glob('*') if x.is_dir()]
-    for folder in folders:
-        disp_gt = plb.imload(folder / 'disp_gt.png', flag_tensor=False)
-        h_set, w_set = np.where(disp_gt > 0)
-        step_sets = list(folder.glob('step_*.png'))
-        for step_file in tqdm(step_sets, desc=folder.name):
-            step_img = plb.imload(step_file, flag_tensor=False)
-            step_color = (step_img[h_set, w_set, :] * 255).astype(np.uint8)
-            new_mat = np.zeros_like(step_img).astype(np.uint8)
-            for i in range(step_color.shape[0]):
-                center = tuple([w_set[i], h_set[i]])
-                color = tuple(step_color[i].tolist())
-                new_mat = cv2.circle(new_mat, center, 3, color, thickness=-1)
-            plb.imsave(step_file, new_mat, scale=1.0)
+def _refill_step_vis(gt_file, step_file):
+    """For dot-based visualization. The original step is too small for dot-based gt."""
+    disp_gt = plb.imload(gt_file, scale=1e2, flag_tensor=False)
+    h_set, w_set = np.where(disp_gt > 0)
+    step_img = plb.imload(step_file, flag_tensor=False)
+    step_color = (step_img[h_set, w_set, :] * 255).astype(np.uint8)
+    new_mat = np.zeros_like(step_img).astype(np.uint8)
+    for i in range(step_color.shape[0]):
+        center = tuple([w_set[i], h_set[i]])
+        color = tuple(step_color[i].tolist())
+        new_mat = cv2.circle(new_mat, center, 3, color, thickness=-1)
+    plb.imsave(step_file, new_mat, scale=1.0)
 
 
 def copy_visualization_res(data_path, res_path, img_set, exp_set, out_path):
@@ -219,60 +170,62 @@ def copy_visualization_res(data_path, res_path, img_set, exp_set, out_path):
     pass
 
 
+def visualize_result(data_folder, output_folder, mask=True, refill=False):
+    # Load config
+    config = ConfigParser()
+    config.read(str(data_folder / 'config.ini'), encoding='utf-8')
+    calib_para = config['RectCalib']
+
+    # Folder_set
+    scene_names = sorted([x.name for x in output_folder.glob('*') if x.is_dir()])
+    for scene_name in scene_names:
+        gt_folder = data_folder / scene_name / 'disp'
+        disp_folder = output_folder / scene_name / 'disp'
+        mask_folder = data_folder / scene_name / 'mask'
+        frm_len = len(list(disp_folder.glob('disp_*.png')))
+
+        # For output
+        vis_folder = output_folder / scene_name / 'vis'
+        vis_folder.mkdir(exist_ok=True)
+
+        for frm_idx in tqdm(range(frm_len), desc=scene_name):
+
+            # disp -> pcd
+            disp_file = disp_folder / f'disp_{frm_idx}.png'
+            mask_file = mask_folder / f'mask_{frm_idx}.png' if mask else None
+            pcd_file = vis_folder / f'pcd_{frm_idx}.xyz'
+
+            if not pcd_file.exists():
+                _disp2pcd(disp_file, pcd_file, calib_para, mask_file)
+            
+            # pcd -> vis
+            vis_file = vis_folder / f'vis_{frm_idx}.png'
+            if not vis_file.exists():
+                _pcd2vis(pcd_file, vis_file, calib_para, True)
+            
+            # disp, gt -> step
+            gt_file = gt_folder / f'disp_{frm_idx}.png'
+            step_file = vis_folder / f'step_{frm_idx}.png'
+            if gt_file.exists() and not step_file.exists():
+                _draw_step_vis(gt_file, disp_file, step_file, mask_file)
+                if refill:
+                    _refill_step_vis(gt_file, step_file)
+
+    pass
+
+
 def main():
-    # copy_visualization_res(
-    #     data_path=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData'),
-    #     res_path=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData-out'),
-    #     img_set=[
-    #         ('scene_0000', 255),
-    #         ('scene_0001', 255),
-    #         ('scene_0002', 255),
-    #         ('scene_0003', 255)
-    #     ],
-    #     exp_set=[
-    #         'mad-off_exp3',
-    #         'mad-lcn_exp1',
-    #         # 'asn-eval',
-    #         # 'ctd-eval',
-    #         # 'mad_exp0',
-    #         # 'tide-eval',
-    #         # 'oade-pfwom_exp1',
-    #         # 'oade-phpfwom_exp1',
-    #         # 'oade-ph_exp1',
-    #         # 'oade-pf_exp1',
-    #         # 'oade-frm0_exp1',
-    #         # 'oade-frm32_exp1',
-    #         # 'oade-frm64_exp1',
-    #         # 'oade-frm96_exp1',
-    #         # 'oade-frm128_exp1',
-    #         # 'oade-frm160_exp1',
-    #         # 'oade-frm192_exp1',
-    #         # 'oade-frm224_exp1',
-    #     ],
-    #     out_path=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData-vis')
-    # )
-    copy_visualization_res(
-        data_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualData'),
-        res_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualData-out'),
-        img_set=[
-            # ('scene_0000', 143),
-            # ('scene_0001', 87),
-            # ('scene_0000', 95),
-            # ('scene_0003', 239),
-            # ('scene_0002', 159),
-            ('scene_0003', 495),
-        ],
-        exp_set=[
-            'mad-off_exp1',
-            'mad-ssmi_exp1',
-            # 'asn-eval',
-            # 'ctd-eval',
-            # 'mad_exp1',
-            # 'tide-eval',
-            # 'oade-phpfwom_exp1',
-        ],
-        out_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualData-vis')
-    )
+    
+    data_set = '3_Non-rigid-Real'
+    exp_name = 'oade-online-wonbr2_exp2'
+    epoch_num = 1
+    mask_flag = False
+    refill = True
+
+    data_folder = Path(f'./data/{data_set}')
+    output_folder = Path(f'./output/{data_set}/{exp_name}/output/{data_set}/epoch_{epoch_num:05}')
+    visualize_result(data_folder, output_folder, mask_flag, refill)
+
     # copy_visualization_res(
     #     data_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualDataEval'),
     #     res_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualDataEval-out'),

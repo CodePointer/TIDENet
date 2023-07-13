@@ -9,7 +9,7 @@ from pathlib import Path
 import utils.pointerlib as plb
 from utils.pattern_flow import PFlowEstimatorLK
 from worker.worker import Worker
-from tide.tide_net import TIDEInit, TIDEFeature, TIDEHidden, TIDEUpdate
+from tide.tide_net import TIDEFeature, TIDEHidden, TIDEUpdate
 from models.img_clip_dataset import ImgClipDataset
 from models.supervise import SuperviseDistLoss
 from models.layers import LCN, WarpLayer

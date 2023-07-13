@@ -16,6 +16,10 @@ from models.layers import LCN
 
 # - Coding Part - #
 class ExpInitWorker(Worker):
+    """
+    This InitNet is deprecated in our latest paper, 
+    for we found that given an all-one matrix as initial value can achieve similar performance.
+    """
     def __init__(self, args):
         """
             Please add all parameters will be used in the init function.

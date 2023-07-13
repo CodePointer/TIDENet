@@ -18,6 +18,7 @@ from models.layers import LCN, WarpLayer
 
 # - Coding Part - #
 class ExpOADEWorker(ExpTIDEWorker):
+    """Online Adaptive Disparity Estimation (OADE)"""
     def __init__(self, args):
         """
             Please add all parameters will be used in the init function.

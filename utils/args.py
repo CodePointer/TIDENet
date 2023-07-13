@@ -66,7 +66,14 @@ def get_args():
                         help='Loss type used for training.',
                         default='pf',
                         choices=['su', 'ph', 'pf', 'phpfwm', 'phpfwom', 'pfwom'],
-                        type=str)
+                        type=str)  
+    # Parameters:
+    #   su: Supervised loss only.
+    #   ph: Photometric loss only. (Photo)
+    #   pf: Multi-frame pattern flow loss only. (PF)
+    #   phpfwom: Photo + PF, but without leverage mask.
+    #   pfwom:  PF, but without leverage mask.
+    
 
     # Parameters for training
     parser.add_argument('--frm_first', 

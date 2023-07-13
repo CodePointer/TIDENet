@@ -23,8 +23,8 @@ import re
 import shutil
 # import open3d as o3d
 
-# import utils.pointerlib as plb
-import pointerlib as plb
+import utils.pointerlib as plb
+# import pointerlib as plb
 
 
 # - Coding Part - #
@@ -33,13 +33,6 @@ class Evaluator:
         self.workbook = openpyxl.load_workbook(str(workbook))
         self.workbook_path = workbook
         self.append_flag = append_flag
-
-    # def run(self, sheet_names=None):
-    #     # Calculate err
-    #     # if sheet_names is None:
-    #     #     sheet_names = self.workbook.get_sheet_names()
-    #     for scene_name in sheet_names:
-    #         self.process_dataset(scene_name)
 
     def process_dataset(self, scene_name, mask_flag=False):
         work_sheet = self.workbook[scene_name]
@@ -109,11 +102,11 @@ class Evaluator:
         
         seq_num = len([x for x in res_path.glob('scene_*') if x.is_dir()])
         for seq_idx in range(seq_num):
-            gt_scene_folder = data_path / f'scene_{seq_idx:02}'
+            gt_scene_folder = data_path / f'scene_{seq_idx:04}'
             disp_gt_folder = gt_scene_folder / 'disp_gt'
             if not disp_gt_folder.exists():
                 disp_gt_folder = gt_scene_folder / 'disp'
-            res_scene_folder = res_path / f'scene_{seq_idx:02}'
+            res_scene_folder = res_path / f'scene_{seq_idx:04}'
             disp_res_folder = res_scene_folder / 'disp'
 
             for frm_idx in range(frm_len[seq_idx]):
@@ -195,52 +188,48 @@ class Evaluator:
         pass
 
 
-def copy_mad_to_path(src_path, dst_path):
-    # Load csv file
-    csv_name = list(src_path.glob('*.csv'))[0]
-    loaded_info = []
-    with open(str(csv_name), 'r', encoding='utf-8') as file:
-        while True:
-            res = file.readline()
-            if res is None or res == '':
-                break
-            img_path = res.split(',')[0]
-            scene_name = re.search('scene_\d+', img_path).group()
-            frm_num = int(re.search('img_\d+', img_path).group().split('_')[1])
-            loaded_info.append([scene_name, frm_num])
+# # Used for MADNet output.
+# def copy_mad_to_path(src_path, dst_path):
+#     # Load csv file
+#     csv_name = list(src_path.glob('*.csv'))[0]
+#     loaded_info = []
+#     with open(str(csv_name), 'r', encoding='utf-8') as file:
+#         while True:
+#             res = file.readline()
+#             if res is None or res == '':
+#                 break
+#             img_path = res.split(',')[0]
+#             scene_name = re.search('scene_\d+', img_path).group()
+#             frm_num = int(re.search('img_\d+', img_path).group().split('_')[1])
+#             loaded_info.append([scene_name, frm_num])
 
-    # Get exp_tag
-    exp_tags = [x.name for x in src_path.glob('*') if x.is_dir()]
-    for exp_tag in exp_tags:
-        for disparity_i, (scene_name, frm_num) in tqdm(enumerate(loaded_info), desc=exp_tag):
-            # src_dispairty_file
-            src_disp_file = src_path.joinpath(exp_tag,
-                                              'disparities',
-                                              f'disparity_{disparity_i}.png')
-            # dst_disparity_file
-            dst_disp_file = dst_path.joinpath(exp_tag,
-                                              'output',
-                                              csv_name.stem,
-                                              'epoch_00001',
-                                              scene_name,
-                                              'disp',
-                                              f'disp_{frm_num}.png')
-            dst_disp_file.parent.mkdir(exist_ok=True, parents=True)
-            shutil.copy(str(src_disp_file), str(dst_disp_file))
+#     # Get exp_tag
+#     exp_tags = [x.name for x in src_path.glob('*') if x.is_dir()]
+#     for exp_tag in exp_tags:
+#         for disparity_i, (scene_name, frm_num) in tqdm(enumerate(loaded_info), desc=exp_tag):
+#             # src_dispairty_file
+#             src_disp_file = src_path.joinpath(exp_tag,
+#                                               'disparities',
+#                                               f'disparity_{disparity_i}.png')
+#             # dst_disparity_file
+#             dst_disp_file = dst_path.joinpath(exp_tag,
+#                                               'output',
+#                                               csv_name.stem,
+#                                               'epoch_00001',
+#                                               scene_name,
+#                                               'disp',
+#                                               f'disp_{frm_num}.png')
+#             dst_disp_file.parent.mkdir(exist_ok=True, parents=True)
+#             shutil.copy(str(src_disp_file), str(dst_disp_file))
 
 
 def main():
-    copy_mad_to_path(
-        src_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualDataEval-out-mad'),
-        dst_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualDataEval-out'),
-    )
-
     app = Evaluator(
-        workbook='/media/qiao/Videos/SLDataSet/OANet/result.xlsx',
-        append_flag=True
+        workbook='./res/result.xlsx',
+        append_flag=False
     )
-    app.process_dataset('OriginEval', mask_flag=True)
-    app.sum_average('OriginEval')
+    app.process_dataset('NonRigidReal', mask_flag=False)
+    app.sum_average('NonRigidReal')
     # app.process_dataset('NonRigidReal', mask_flag=False)
     # app.sum_average('NonRigidReal')
     # app.process_dataset('NonRigidVirtual', mask_flag=True)
