@@ -298,7 +298,7 @@ def create_pattern_field(pattern_name, pattern_mask):
 
 if __name__ == '__main__':
     create_pattern_field(
-        pattern_name=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData/pat/pat_0.png'),
-        pattern_mask=Path('/media/qiao/Videos/SLDataSet/OANet/52_RealData/pat/mask.png')
+        pattern_name=Path('./data/3_Non-rigid-Real/pat/pat_0.png'),
+        pattern_mask=Path('./data/3_Non-rigid-Real/pat/mask.png')
     )
     pass

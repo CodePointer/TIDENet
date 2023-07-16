@@ -96,8 +96,6 @@ class ImgClipDataset(BaseDataset):
         frm_jump = frm_step * clip_len + clip_jump
         self.samples = []
         for i, seq_folder in enumerate(self.seq_folders):
-            if i >= 2 ** 11:
-                break
             for frm_start in range(frm_first, self.frm_len[i], frm_jump):
                 if frm_start + frm_step * clip_len > self.frm_len[i]:
                     continue

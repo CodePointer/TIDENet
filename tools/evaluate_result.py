@@ -7,24 +7,17 @@
 # @Software:  PyCharm
 # @Description:
 #   This file is used for disparity map evaluation.
-#   Notice the coordinate for open3d is: left x, up y, left handed.
 
 # - Package Imports - #
-import time
 from configparser import ConfigParser
 from pathlib import Path
 import numpy as np
-import cv2
 import torch
 import openpyxl
 from openpyxl.styles import Alignment
 from tqdm import tqdm
-import re
-import shutil
-# import open3d as o3d
 
 import utils.pointerlib as plb
-# import pointerlib as plb
 
 
 # - Coding Part - #
@@ -72,15 +65,6 @@ class Evaluator:
         for i in range(exp_num):
             prog_bar.set_description(f'{scene_name}[{exp_set[i].name}]')
             row_idx = start_row + i
-
-            # Check if skip or not
-            # flag_all_filled = True
-            # for col_idx in [3, 4, 5, 6]:
-            #     cell_res = work_sheet.cell(row=row_idx, column=col_idx)
-            #     flag_all_filled = flag_all_filled and cell_res.value is not None
-            # if not self.flush_flag and flag_all_filled:
-            #     prog_bar.update(len(cmp_sets[i]))
-            #     continue
 
             # Evaluate result and fill results
             res = self._evaluate_exp_outs(cmp_sets[i], prog_bar)
@@ -188,59 +172,14 @@ class Evaluator:
         pass
 
 
-# # Used for MADNet output.
-# def copy_mad_to_path(src_path, dst_path):
-#     # Load csv file
-#     csv_name = list(src_path.glob('*.csv'))[0]
-#     loaded_info = []
-#     with open(str(csv_name), 'r', encoding='utf-8') as file:
-#         while True:
-#             res = file.readline()
-#             if res is None or res == '':
-#                 break
-#             img_path = res.split(',')[0]
-#             scene_name = re.search('scene_\d+', img_path).group()
-#             frm_num = int(re.search('img_\d+', img_path).group().split('_')[1])
-#             loaded_info.append([scene_name, frm_num])
-
-#     # Get exp_tag
-#     exp_tags = [x.name for x in src_path.glob('*') if x.is_dir()]
-#     for exp_tag in exp_tags:
-#         for disparity_i, (scene_name, frm_num) in tqdm(enumerate(loaded_info), desc=exp_tag):
-#             # src_dispairty_file
-#             src_disp_file = src_path.joinpath(exp_tag,
-#                                               'disparities',
-#                                               f'disparity_{disparity_i}.png')
-#             # dst_disparity_file
-#             dst_disp_file = dst_path.joinpath(exp_tag,
-#                                               'output',
-#                                               csv_name.stem,
-#                                               'epoch_00001',
-#                                               scene_name,
-#                                               'disp',
-#                                               f'disp_{frm_num}.png')
-#             dst_disp_file.parent.mkdir(exist_ok=True, parents=True)
-#             shutil.copy(str(src_disp_file), str(dst_disp_file))
-
-
 def main():
     app = Evaluator(
-        workbook='./res/result.xlsx',
+        workbook='./res/result.xlsx',  # Here is your excel file
         append_flag=False
     )
-    app.process_dataset('NonRigidReal', mask_flag=False)
-    app.sum_average('NonRigidReal')
-    # app.process_dataset('NonRigidReal', mask_flag=False)
-    # app.sum_average('NonRigidReal')
-    # app.process_dataset('NonRigidVirtual', mask_flag=True)
-    # app.sum_average('NonRigidVirtual')
-    # app.process_dataset('NonRigidRealAbl', mask_flag=False)
-    # app.sum_average('NonRigidRealAbl')
-    # app.process_dataset('NonRigidVirtualMad', mask_flag=True)
-    # app.sum_average('NonRigidVirtualMad')
+    app.process_dataset('NonRigidReal', mask_flag=False)  # This is the sheet name.
+    app.sum_average('NonRigidReal')  # Results will be saved in sheet 'NonRigidReal-Sum'.
 
 
 if __name__ == '__main__':
     main()
-    # main_sup()
-    # draw_gifs()

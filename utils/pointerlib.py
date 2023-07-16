@@ -213,6 +213,60 @@ class VisualFactory:
         return torch.cat(h_stack, dim=h_dim)
 
 
+class DepthMapConverter:
+    def __init__(self, depth_map, focus):
+        """
+        depth_map: [1, H, W], torch.Tensor or numpy.Array.
+        focus: float
+        """
+        self.depth_map = a2t(depth_map)
+        self.imsize = depth_map.shape[-2:]
+        self.focus = focus
+
+        hei, wid = self.imsize
+        self.dx = wid // 2
+        self.dy = hei // 2
+
+    def to_xyz_mat(self):
+        hei, wid = self.imsize
+        hh = torch.arange(0, hei).view(-1, 1).repeat(1, wid).unsqueeze(0)  # [1, H, W]
+        ww = torch.arange(0, wid).view(1, -1).repeat(hei, 1).unsqueeze(0)  # [1, H, W]
+        xyz_mat = torch.cat([
+            (ww - self.dx) / self.focus,
+            (hh - self.dy) / self.focus,
+            torch.ones_like(self.depth_map)
+        ], dim=0) * self.depth_map
+        return xyz_mat
+
+    def to_xyz_set(self, mask=None):
+        xyz_mat = self.to_xyz_mat()
+        xyz_set = xyz_mat.reshape(3, -1).permute(1, 0)
+        if mask is not None:
+            return xyz_set[mask.reshape(-1) > 0.0, :]
+        else:
+            return xyz_set
+
+    def to_mesh(self, mask=None):  # TODO: include mask
+        vertices = self.to_xyz_set().unsqueeze(0)
+        hei, wid = self.imsize
+        # hh = torch.arange(0, hei).view(-1, 1).repeat(1, wid).unsqueeze(0)  # [1, H, W]
+        # ww = torch.arange(0, wid).view(1, -1).repeat(hei, 1).unsqueeze(0)  # [1, H, W]
+        faces = []
+        for h in range(0, hei - 1):
+            for w in range(0, wid - 1):
+                lf_up = h * wid + w
+                lf_dn = (h + 1) * wid + w
+                rt_up = h * wid + w + 1
+                rt_dn = (h + 1) * wid + w + 1
+                triangles = torch.as_tensor([
+                    [lf_up, rt_dn, rt_up],
+                    [lf_up, lf_dn, rt_dn]
+                ], dtype=torch.int)  # [2, 3]
+                faces.append(triangles)
+        faces = torch.cat(faces, dim=0).unsqueeze(0)
+        return vertices, faces
+
+
 # - Coding Part: Funcs - #
 def subfolders(folder):
     if folder is None or folder == '':

@@ -9,7 +9,6 @@
 
 # - Package Imports - #
 from pathlib import Path
-import shutil
 import numpy as np
 from configparser import ConfigParser
 import open3d as o3d
@@ -18,7 +17,7 @@ import torch
 import cv2
 from tqdm import tqdm
 
-import pointerlib as plb
+import utils.pointerlib as plb
 
 
 # - Coding Part - #
@@ -136,40 +135,6 @@ def _refill_step_vis(gt_file, step_file):
     plb.imsave(step_file, new_mat, scale=1.0)
 
 
-def copy_visualization_res(data_path, res_path, img_set, exp_set, out_path):
-    
-    for scene_folder_name, frm_idx in img_set:
-        out_folder = out_path / f'{scene_folder_name}-{frm_idx}'
-        out_folder.mkdir(exist_ok=True, parents=True)
-
-        # Copy ground-truth & image & mask
-        shutil.copy(
-            str(data_path / scene_folder_name / 'disp' / f'disp_{frm_idx}.png'),
-            str(out_folder / 'disp_gt.png')
-        )
-        shutil.copy(
-            str(data_path / scene_folder_name / 'img' / f'img_{frm_idx}.png'),
-            str(out_folder / 'img.png')
-        )
-        shutil.copy(
-            str(data_path / scene_folder_name / 'mask' / f'mask_{frm_idx}.png'),
-            str(out_folder / 'mask.png')
-        )
-
-        # Copy res from all the exp_set
-        for exp_tag in exp_set:
-            sub_folders = [x for x in (res_path / exp_tag / 'output' / data_path.name).glob('*') if x.is_dir()]
-            exp_res_path = sorted(sub_folders)[-1]
-            shutil.copy(
-                str(exp_res_path / scene_folder_name / 'disp' / f'disp_{frm_idx}.png'),
-                str(out_folder / f'disp_{exp_tag}.png')
-            )
-
-        print(f'{out_folder.name} finished.')
-    
-    pass
-
-
 def visualize_result(data_folder, output_folder, mask=True, refill=False):
     # Load config
     config = ConfigParser()
@@ -216,7 +181,7 @@ def visualize_result(data_folder, output_folder, mask=True, refill=False):
 
 def main():
     
-    data_set = '3_Non-rigid-Real'
+    data_set = 'Non-rigid-Real'
     exp_name = 'oade-online-wonbr2_exp2'
     epoch_num = 1
     mask_flag = False
@@ -225,27 +190,6 @@ def main():
     data_folder = Path(f'./data/{data_set}')
     output_folder = Path(f'./output/{data_set}/{exp_name}/output/{data_set}/epoch_{epoch_num:05}')
     visualize_result(data_folder, output_folder, mask_flag, refill)
-
-    # copy_visualization_res(
-    #     data_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualDataEval'),
-    #     res_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualDataEval-out'),
-    #     img_set=[
-    #         ('scene_00', 255),
-    #         # ('scene_0001', 87),
-    #         ('scene_04', 255)
-    #         # ('scene_0002', 159),
-    #         # ('scene_0003', 495)
-    #     ],
-    #     exp_set=[
-    #         'asn-eval',
-    #         'ctd-eval',
-    #         'mad-lcn_exp1',
-    #         'mad-off',
-    #         'tide-eval',
-    #         'oade-phpfwom_exp1',
-    #     ],
-    #     out_path=Path('/media/qiao/Videos/SLDataSet/OANet/31_VirtualDataEval-vis')
-    # )
 
     pass
 

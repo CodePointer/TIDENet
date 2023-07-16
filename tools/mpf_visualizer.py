@@ -6,7 +6,7 @@
 # @File:      mpf_visualizer.py
 # @Software:  PyCharm
 # @Description:
-#   None
+#   This file is for debugging. Visualize the multi-frame pattern flow.
 
 # - Package Imports - #
 import numpy as np
@@ -89,7 +89,7 @@ class MPFVisualizer:
 
 
 def main():
-    seq_folder = Path('C:/SLDataSet/TADE/5_RealDataCut/scene_0000')
+    seq_folder = Path('./data/3_Non-rigid-Real/scene_0000')
     total_frm = 32  # 2000
     clip_len = 8
 
