@@ -137,7 +137,7 @@ chmod +x ./scripts/run_online.sh
 
 Results will be saved under `out_dir`.
 
-# Step 4: Analyze the Results
+## Step 4: Analyze the Results
 
 We provide two files for quantitative evaluation (`./tools/evaluate_result.py`) and qualitative visualization (`./tools/dispairty_visualizer.py`).
 
