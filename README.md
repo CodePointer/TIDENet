@@ -8,10 +8,17 @@ If you find our code useful, please cite:
 @article{qiao2022tide,
     title={{TIDE}: Temporally Incremental Disparity Estimation via Pattern Flow in Structured Light System},
     author={Rukun Qiao and Hiroshi Kawasaki and Hongbin Zha},
-    journal=RAL,
+    journal={RAL},
     year={2022},
     volume={7},
     pages={5111-5118},
+}
+
+@inproceedings{qiao2023,
+  title={Online Adaptive Disparity Estimation for Dynamic Scenes in Structured Light Systems},
+  author={Rukun Qiao and Hiroshi Kawasaki and Hongbin Zha},
+  booktitle={IROS}, 
+  year={2023}
 }
 ```
 
