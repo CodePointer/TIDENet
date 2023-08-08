@@ -14,7 +14,7 @@ If you find our code useful, please cite:
     pages={5111-5118},
 }
 
-@inproceedings{qiao2023,
+@inproceedings{qiao2023online,
   title={Online Adaptive Disparity Estimation for Dynamic Scenes in Structured Light Systems},
   author={Rukun Qiao and Hiroshi Kawasaki and Hongbin Zha},
   booktitle={IROS}, 
